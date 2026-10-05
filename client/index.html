@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>postings · job scan</title>
+<link rel="stylesheet" href="/styles.css?v=20261005a">
+</head>
+<body>
+<header class="topbar">
+  <nav class="tabs">
+    <a href="/" class="on">postings</a>
+    <a href="/health.html">scan health</a>
+  </nav>
+  <span class="topmeta" id="topmeta"></span>
+</header>
+
+<main class="page">
+  <div class="card">
+    <div class="toolbar">
+      <span class="prompt" aria-hidden="true">&gt;</span>
+      <input type="search" id="q" placeholder="Filter company or title…">
+      <select id="locfilter" aria-label="location"></select>
+      <span class="sep"></span>
+      <div class="seg" role="group" aria-label="filters">
+        <span class="chip" id="mailonly">address</span>
+        <span class="chip" id="gaps">gaps</span>
+      </div>
+    </div>
+
+    <table class="shortlist"><thead><tr>
+      <th data-s="rank" class="r">#</th><th data-s="score" class="r">Score</th>
+      <th data-s="posted">Posted</th><th data-s="tier">Location</th>
+      <th data-s="company">Company</th><th data-s="title">Title</th>
+    </tr></thead><tbody id="rows"></tbody></table>
+    <div class="none" id="empty" style="display:none">No rows match</div>
+
+    <div class="pager" id="pager">
+      <span class="pginfo" id="pginfo"></span>
+      <span class="pgspacer"></span>
+      <label class="pgsize">rows <select id="pgsize">
+        <option>25</option><option>50</option><option>100</option>
+      </select></label>
+      <button class="pg" id="pgprev" type="button" aria-label="previous page">&lsaquo;</button>
+      <span class="pgnum" id="pgnum"></span>
+      <button class="pg" id="pgnext" type="button" aria-label="next page">&rsaquo;</button>
+    </div>
+  </div>
+</main>
+
+<div id="scrim"></div>
+<aside id="drawer" aria-hidden="true">
+  <div class="dh">
+    <button class="x" id="dclose" title="close (Esc)">&times;</button>
+    <h3 id="dtitle">—</h3>
+    <div class="dsub" id="dsub"></div>
+    <div class="dtabs" id="dtabs">
+      <button type="button" data-tab="summary" class="on">Summary</button>
+      <button type="button" data-tab="resume">Résumé</button>
+      <button type="button" data-tab="contact">Contact</button>
+    </div>
+  </div>
+  <div id="dbody"></div>
+</aside>
+<script type="module" src="/js/main.js?v=20261005a"></script>
+</body>
+</html>

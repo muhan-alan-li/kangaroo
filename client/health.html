@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scan health · job scan</title>
+<link rel="stylesheet" href="/styles.css?v=20261005a">
+</head>
+<body>
+<header class="topbar">
+  <nav class="tabs">
+    <a href="/">postings</a>
+    <a href="/health.html" class="on">scan health</a>
+  </nav>
+  <span class="topmeta" id="topmeta"></span>
+</header>
+
+<main class="page">
+  <div class="card">
+    <div class="cardhead"><h2>Scan</h2></div>
+    <div class="kvblock" id="scan"></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>Source cost</h2></div>
+    <table class="data"><thead><tr>
+      <th>Source</th><th class="r">Collected</th><th class="r">Seconds</th></tr>
+    </thead><tbody id="costrows"></tbody></table>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>Board health</h2></div>
+    <div class="kvblock" id="healthsum"></div>
+    <table class="data"><thead><tr>
+      <th>Board</th><th class="r">Fails</th><th>Kind</th><th>Last error</th><th>Next check</th>
+    </tr></thead><tbody id="failrows"></tbody></table>
+  </div>
+</main>
+
+<script type="module" src="/js/health.js?v=20261005a"></script>
+</body>
+</html>
