@@ -1,0 +1,276 @@
+# Where postings come from.
+#
+# Verified reachable from this machine on 2026-09-23; startups.gallery added 2026-09-28.
+# Not usable here: eluta.ca (captcha wall), careerjet.ca (JS-only),
+# talent.com / ziprecruiter (403), indeed (403 -- use the browser by hand).
+# LinkedIn is scanned read-only through its public guest search, which needs no
+# account; applying there stays manual.
+
+sources:
+
+  - id: jobbank
+    enabled: true
+    kind: jobbank
+    # Government of Canada Job Board. Authoritative for Canadian postings,
+    # public, no auth, and it carries a posted date.
+    search_strings:
+      - software engineer
+      - software developer
+      - software development
+      - junior software
+      - new grad software
+      - full stack developer
+      - web developer
+    location: "Vancouver, BC"
+    radius_km: 50
+
+  - id: newgrad_list
+    enabled: true
+    kind: simplify
+    # Coder Quad / Simplify "New Grad Positions" — HTML tables, refreshed daily.
+    # Strong on big-name SWE new grad roles; carries a location and an age column.
+    url: "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/README.md"
+    sections: [software-engineering-new-grad-roles]
+
+  - id: newgrad_json
+    enabled: true
+    kind: simplify_json
+    # The machine-readable feed from the same repo. README.md is generated *from* this
+    # file, so the JSON is the truer source: it keeps the active flag, the exact post
+    # date and the stable id that the HTML view drops. In the README, closed postings
+    # sit in collapsed <details> blocks with a full <table> inside, so an HTML scrape
+    # reads them as live and only age can filter them -- which fails, because a posting
+    # closed today is still young. Added 2026-09-30 alongside newgrad_list, not instead.
+    url: "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json"
+    window_days: 30          # bounds the work; the global max_age_days still decides
+    exclude_sponsorship:
+      - "Does Not Offer Sponsorship"    # the feed's only explicit "no"
+    # Category is not filtered here. The feed's category strings are inconsistent --
+    # "Software" (1041), "AI/ML/Data" (1146), "Software Engineering" (14) and others all
+    # describe the same kind of work -- so a category allow-list would silently drop
+    # roles. Title and location do the selecting instead.
+
+  - id: ats_boards
+    enabled: true
+    kind: ats
+    # Direct public ATS APIs. The highest-signal source, because these postings are
+    # real and applyable. The slug list lives in ats_boards.yaml, which
+    # server/jobs/probe_ats.py regenerates: every entry there answered its board API with at
+    # least one open posting when it was probed.
+    #
+    #     python3 -m server probe-ats
+    #
+    # config/workday_boards.yaml is the second board list. Workday is about 46% of the
+    # Simplify feed and needs a tenant + wd number + career site per employer rather than
+    # a single slug, so it lives in its own file. The scan reads the first page of each
+    # board only: the board API is date-sorted newest first and carries a real publish
+    # field, so paging past the window would cost hundreds of thousands of requests a day
+    # to reach postings that are months old.
+    companies_files:
+      - config/ats_boards.yaml
+      - config/workday_boards.yaml
+      - config/json_boards.yaml
+      - config/icims_boards.yaml
+    # The uniform JSON set: Workable, SmartRecruiters, Rippling, BambooHR, Recruitee,
+    # Breezy and Teamtailor. Seven vendors that all take a slug in a URL template and answer
+    # with JSON, over five hundred boards between them, so they run as one parallel batch.
+    # The same three basic filters apply -- engineering titles, Canada/US, last 7 days --
+    # because the volume problem is the same one Workday has. Turn it off by deleting
+    # `title_words` here (titles then fall through to the global filters instead).
+    #
+    # Two of the seven carry no publish date anywhere in their payload: Rippling and
+    # BambooHR. Their postings arrive tagged `date_missing` and are reported once, because
+    # there is nothing to age them by.
+    # iCIMS. The one source the scan cannot read itself: every customer host is behind an
+    # AWS WAF that 405s a plain HTTP client on every path, and a real browser passes on TLS
+    # fingerprint alone (it holds no aws-waf-token cookie to borrow). The reading therefore
+    # happens in server/scan/icims_fetch.py under .venv-icims, using curl_cffi browser impersonation,
+    # driven as a subprocess. With that venv absent the source is skipped with a message
+    # rather than failing the run.
+    #
+    # The search view carries no date and offers no date sort, and the board's default order
+    # is not a recency proxy, so the fetcher reads each candidate's job detail page for the
+    # schema.org `datePosted`. `max_pages` bounds how much of a long board is enumerated,
+    # and a board that fills every page is reported -- a recent posting could sit past it.
+    icims:
+      max_pages: 4          # 4 x 50 postings per board; going past the cap is reported
+      # Measured across all 247 hosts on 2026-10-02, and every level produced byte-identical
+      # output -- 2,742 candidates, 476 kept within 7 days, 4 boards silently refusing, 34
+      # truncated: 16 workers -> 92.9s, 32 -> 50s, 64 -> 29s, 96 -> 25s, 128 -> 24s. The
+      # plateau is about 24s. This is why it scales where Workday does not: the 247 hosts are
+      # separate companies' sites behind separate WAFs, so there is no shared per-IP bucket
+      # and the pool is pure latency hiding. Re-measure with the refusal count, not the clock,
+      # as the signal -- a pool that costs boards is worse than a slow one.
+      workers: 64
+      window_days: 7
+      timeout: 25
+      details: true         # read detail pages for the date; false leaves every row undated
+      total_timeout: 900
+      # Only for boards that run past `max_pages`: a keyword search narrows the result set
+      # server-side, so a given budget reaches more of the engineering postings instead of
+      # an arbitrary first slice. Measured across all 247 hosts: the plain listing alone
+      # yields 401 postings inside 7 days in 135s; with this backfill it is 447 in 179s.
+      # The truncated-board count stays at 34 either way, because it flags the plain pass --
+      # the backfill is a mitigation, not a guarantee, so the count remains worth reading.
+      keywords:
+        - engineer
+        - developer
+    jsonboards:
+      workers: 12
+      window_days: 7
+      max_pages: 2          # SmartRecruiters only; it is date-sorted, so it stops at the edge
+      timeout: 25
+      title_words:
+        - engineer
+        - engineering
+        - developer
+        - programmer
+        - swe
+        - sde
+    workday:
+      page_size: 20
+      max_pages: 2          # stops early only when a page comes back short or empty
+      window_days: 7        # the user's ask for this source: last 7 days
+      # Narrow the board server-side to engineering postings. It costs the same two requests
+      # but reaches far more of the window: a plain page is the board's newest postings
+      # whatever they are, and on a busy board that is well under a week. 40-board sample,
+      # within-window Canada/US engineering hits -- 2 plain pages 110, 2 keyword pages 161.
+      search_text: engineer
+      # Measured on 2026-10-02, and the two measurements disagree -- which is the finding.
+      # A fixed 200-board sample taken while this IP still had budget: 16 workers -> 22.0s
+      # and 32 -> 11.7s, identical yield (1,506 in-window hits) and identical failures
+      # (3 boards), which looked like a free 2x. The same sample an hour later, after
+      # repeated probing from this machine, read 16 workers -> 21.7s / 1,505 hits / 3
+      # failures against 32 -> 14.5s / 1,367 hits / 26 failures, and a whole-pool run at 32
+      # lost 303 of 1,328 boards. Workday throttles by IP over a window, so the pool that
+      # is safe depends on the budget left, and 32 buys seconds by spending boards.
+      # 16 is the value that held its failure count under repeated load, so it stays.
+      # Widening it again is only defensible with the "boards did not answer" count watched
+      # across several runs, never from a single sample.
+      workers: 16
+      timeout: 25
+      # server/jobs/sweep_workday.py sweeps this fleet on its own beat and leaves the postings in
+      # state/workday_sweep.json. The daily scan reads that file when it is younger than
+      # max_cache_age_hours and skips the sweep entirely; when the file is missing or older,
+      # the scan sweeps Workday itself, so an unscheduled separate pass costs time and never
+      # coverage. 30h covers a once-a-day sweep plus a missed night.
+      cache: state/workday_sweep.json
+      max_cache_age_hours: 30
+      # The cursor: a board whose keyword page one is identical to the last read that reached
+      # its page two does not fetch page two again, which halves the requests on an unchanged
+      # fleet. This bounds how stale that page-two read may be -- the keyword feed is ordered
+      # by relevance, so a posting can land past position 20 without disturbing page one, and
+      # without a bound it could sit unseen indefinitely. 3 days is well inside the 7-day
+      # window, so nothing ages out unseen.
+      cursor_max_age_days: 3
+      # "engineering roles, in Canada/US, posted in the last 7 days" -- the user's basic
+      # filter for Workday, applied inside the source so the other 86% of a board never
+      # becomes a posting. Measured on a 1,543-posting sample: 14% survive, and every drop
+      # inspected was genuinely overseas or genuinely not engineering.
+      title_words:
+        - engineer
+        - engineering
+        - developer
+        - programmer
+        - swe
+        - sde
+
+  - id: linkedin
+    enabled: true
+    kind: linkedin
+    # Public, unauthenticated guest job search. Read-only: this never signs in and
+    # never submits anything. 20 requests per run, 1.2s apart.
+    url: "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+    recency: "r604800"          # posted in the last 7 days
+    keywords:
+      - software engineer new grad
+      - junior software developer
+      - software developer
+      - full stack developer
+      - backend developer
+    locations:
+      - "Vancouver, British Columbia, Canada"
+      - "Toronto, Ontario, Canada"
+      - "Seattle, Washington, United States"
+      - "San Francisco Bay Area"
+
+  - id: startups_gallery
+    enabled: true
+    kind: startups_gallery
+    # startups.gallery — a directory of early-stage startups (Y Combinator, a16z,
+    # Sequoia and others) with a job feed. The /jobs page server-renders about 20 of the
+    # newest postings, newest first, and each card deep-links into the employer's own
+    # ATS. There is no API and no pagination, so a run sees today's slice only; the dedupe
+    # ledger absorbs the repeats, and the dedupe key is the employer's own job id, so a
+    # posting the ats source also finds is reported once.
+    #
+    # Every posting carries the board slug behind it, and the scan harvests those slugs
+    # into state/sg_boards.json. server/jobs/probe_ats.py reads that file, so a company seen here
+    # once gets its whole board probed later, instead of only the one posting that
+    # surfaced. The feed is mostly United States startups; the location tiers decide what
+    # survives.
+    url: "https://startups.gallery/jobs"
+
+  - id: workatastartup
+    enabled: true
+    kind: workatastartup
+    # Work at a Startup (Y Combinator) — the anonymous job feed. Added 2026-10-04 at the
+    # candidate's request. Every page is an Inertia app that embeds its props as JSON in a
+    # `data-page` attribute on the root element, and the source reads that attribute: it is
+    # the stable door. Asking for the JSON API instead (X-Inertia: true) requires an
+    # X-Inertia-Version header and answers 409 without one, and that version changes whenever
+    # YC rebuilds the front end.
+    #
+    # This host answers 406 to any request whose Accept header is not browser-shaped, so the
+    # source does its own fetching and must NOT be routed through core.http_get, which sends
+    # `Accept: */*`. The request is otherwise ordinary: no cookie, no token, no account.
+    #
+    # The feed paginates only for signed-in users: a page returns 30 jobs, `?page=2` returns
+    # the same 30, and the query-string filters (role, minExperience, usVisaNotRequired,
+    # jobType, sortBy) are ignored for an anonymous visitor. What does vary is WHICH 30, per
+    # page type, so the source sweeps the paths below. Measured 2026-10-04: 285 distinct
+    # jobs, 66 engineering-titled. Never add a `?page=` path -- it repeats page one.
+    #
+    # Two limits, both deliberate and both recorded in config/source_candidates.md:
+    #   * No publish date exists anywhere on the site (not in the list payload, not on the
+    #     job page), so every posting is tagged `date_missing` -- the same treatment Rippling
+    #     and BambooHR get. The sweep is served newest-first, which is not the same thing as
+    #     a date, and the source does not pretend it is.
+    #   * `applyUrl` points at account.ycombinator.com/authenticate, so applying needs a YC
+    #     account. These postings are read-only here; the application is the candidate's.
+    # The job page (https://www.workatastartup.com/jobs/<id>) is public and additionally
+    # carries minExperience and sponsorsVisa, so the visa question is answerable per posting
+    # if it ever needs to be. It is not fetched today -- that would be one request per job.
+    paths:
+      - /jobs
+      - /companies?role=eng
+      - /jobs/l/software-engineer
+      - /jobs/l/designer
+      - /jobs/l/recruiting
+      - /jobs/l/science
+      - /jobs/l/product-manager
+      - /jobs/l/operations
+      - /jobs/l/sales-manager
+      - /jobs/l/marketing
+      - /jobs/l/legal
+      - /jobs/l/finance
+
+  - id: indeed
+    enabled: false
+    kind: indeed
+    # ca.indeed.com answers 403 to this machine on every request shape tried
+    # (search page, RSS, mobile UA). Left here as a stub so the reason is on the
+    # record; scan for Indeed postings with the browser instead.
+    url: "https://ca.indeed.com/jobs"
+    queries:
+      - software engineer new grad
+      - junior software developer
+    locations: ["Vancouver, BC", "Toronto, ON", "Seattle, WA", "San Francisco, CA"]
+
+  - id: remotive
+    enabled: false
+    kind: remotive
+    # Global remote board. Toggle on if you want worldwide remote roles;
+    # the location filter still enforces Canada-eligible remote only.
+    url: "https://remotive.com/api/remote-jobs"
+    categories: [software-dev]

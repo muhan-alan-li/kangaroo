@@ -1,0 +1,335 @@
+# What counts as a match.
+# Edit freely. scan.py reads this on every run.
+
+# A posting must match at least one of these to be considered at all.
+# Case-insensitive, matched as whole phrases.
+titles_include:
+  - software engineer
+  - software developer
+  - software development engineer
+  - sde
+  - swe
+  - programmer
+  - full stack
+  - fullstack
+  - full-stack
+  - backend
+  - back end
+  - back-end
+  - frontend
+  - front end
+  - front-end
+  - web developer
+  - application developer
+  - mobile developer
+  - platform engineer
+  - cloud engineer
+  - devops
+  - site reliability
+  - data engineer
+  - machine learning engineer
+  - ml engineer
+  - qa engineer
+  - test engineer
+  - automation engineer
+  - api developer
+  # junior-appropriate QA entry paths
+  - software tester
+  - qa analyst
+  - quality assurance analyst
+
+# Broadening rule: a generic role word plus a tech word also counts. This catches
+# "Cloud Developer", "Systems Programmer", "Software Designer" without you having to
+# enumerate every title variant. The excludes above still run first.
+titles_role_words:
+  - engineer
+  - engineering
+  - developer
+  - programmer
+  - designer
+titles_tech_words:
+  - software
+  - web
+  - frontend
+  - front end
+  - front-end
+  - backend
+  - back end
+  - back-end
+  - full stack
+  - fullstack
+  - full-stack
+  - cloud
+  - data
+  - platform
+  - mobile
+  - api
+  - systems
+  - infrastructure
+  - devops
+  - ml
+  - machine learning
+  - ai
+  - test
+  - qa
+  - automation
+  - application
+  - computer
+  - embedded
+  - firmware
+  - database
+  - security
+  - distributed
+  - saas
+  - tools
+
+# Hard kills. Word-boundary matched, so "internal" does NOT match "intern".
+# New grad, so student / intern / co-op postings are out by default.
+titles_exclude:
+  - senior
+  - sr.
+  - staff
+  - principal
+  - lead
+  - leader
+  - manager
+  - director
+  - head of
+  - vp
+  - vice president
+  - chief
+  - architect
+  - distinguished
+  - fellow
+  - intern
+  - internship
+  - co-op
+  - coop
+  - student
+  - apprentice
+  - "5+ years"
+  - "6+ years"
+  - "7+ years"
+  - "8+ years"
+  - "10+ years"
+  # non-engineering noise that trips the keyword filter
+  - sales
+  - marketing
+  - recruiter
+  - accountant
+  - nurse
+  - driver
+  - technician
+
+# Ranked locations. The scan prints postings in this order and drops anything that
+# matches no tier at all. Rank = position in this list, so reordering the list is
+# reordering the report -- no other file needs to change.
+#
+# country: usa tells the scan that the application will ask about US work
+# authorization. Those postings are kept but flagged, never hidden.
+#
+# cities:            matched on sight, unless the posting looks US-only.
+# ambiguous_cities:  need an explicit Canada signal, because the same name exists
+#                    somewhere else (Richmond VA, London UK, Windsor UK).
+location_tiers:
+  - name: vancouver
+    label: "new grad Vancouver / Metro"
+    country: canada
+    cities:
+      - vancouver
+      - burnaby
+      - north vancouver
+      - west vancouver
+      - new westminster
+      - coquitlam
+      - port coquitlam
+      - port moody
+      - maple ridge
+      - pitt meadows
+      - ubc
+      - sfu
+      - metrotown
+      - brentwood
+    ambiguous_cities:
+      - richmond
+      - surrey
+      - delta
+      - langley
+      - white rock
+      - tsawwassen
+      - ladner
+
+  - name: remote_canada
+    label: "new grad remote, Canada"
+    country: canada
+
+  - name: toronto
+    label: "new grad Toronto / Ontario"
+    country: canada
+    cities:
+      - toronto
+      - mississauga
+      - brampton
+      - markham
+      - vaughan
+      - richmond hill
+      - oakville
+      - waterloo
+      - kitchener
+      - guelph
+      - ottawa
+      - barrie
+      - scarborough
+      - etobicoke
+    ambiguous_cities:
+      - london
+      - hamilton
+      - kingston
+      - windsor
+
+  - name: seattle
+    label: "new grad Seattle / Bellevue"
+    country: usa
+    cities:
+      - seattle
+      - bellevue
+      - redmond
+      - kirkland
+      - bothell
+      - renton
+      - tacoma
+      - everett
+      - lynnwood
+      - issaquah
+      - woodinville
+
+  - name: bay_area
+    label: "new grad Bay Area"
+    country: usa
+    cities:
+      - san francisco
+      - south san francisco
+      - palo alto
+      - mountain view
+      - sunnyvale
+      - san jose
+      - santa clara
+      - cupertino
+      - menlo park
+      - redwood city
+      - san mateo
+      - foster city
+      - milpitas
+      - fremont
+      - oakland
+      - berkeley
+      - los altos
+      - san bruno
+      - daly city
+      - bay area
+
+  - name: remote_us
+    label: "remote, US only (needs US work authorization)"
+    country: usa
+
+  - name: remote_unspecified
+    label: "remote, region not stated"
+    country: unknown
+
+# Where you'll actually work: the Vancouver list kept for reference. The tiers above
+# are what the scan uses; this block only backstops a posting whose tier lookup is
+# empty.
+locations:
+  # Metro Vancouver. Matched directly.
+  metro:
+    - vancouver
+    - burnaby
+    - north vancouver
+    - west vancouver
+    - new westminster
+    - coquitlam
+    - port coquitlam
+    - port moody
+    - maple ridge
+    - pitt meadows
+    - ubc
+    - sfu
+    - metrotown
+    - brentwood
+  # Same names exist outside BC, so these need BC/Canada confirmation to match.
+  metro_ambiguous:
+    - richmond
+    - surrey
+    - delta
+    - langley
+    - white rock
+    - tsawwassen
+    - ladner
+  # Commutable-but-not-Vancouver BC. OFF by default -- Campbell River is a ferry
+  # ride away, not a commute.
+  regional_bc_enabled: false
+  regional_bc:
+    - abbotsford
+    - chilliwack
+    - mission
+    - squamish
+    - victoria
+    - nanaimo
+    - kelowna
+
+# Remote postings: accepted only when they're Canada-eligible.
+# "Remote in USA" is accepted but ranked below the Bay Area and flagged, because it
+# needs US work authorization. Bare "Remote" is accepted, ranked last, and flagged.
+remote:
+  enabled: true
+  accept_countries: [canada, can]
+  accept_unspecified: true
+  accept_us: true
+  tier_canada: remote_canada
+  tier_us: remote_us
+  tier_unspecified: remote_unspecified
+
+# Freshness. Anything older than this is dropped (new grad roles get stale fast).
+max_age_days: 7
+
+# Level-II titles: "Software Engineer II", "SDE II", "Developer II", "Software Engineer (L3)".
+# The candidate has had little success with these bands, so they are held to a higher bar
+# rather than dropped outright (2026-09-24, their instruction: "for level II we need to make
+# sure there is a really good fit in terms of my experience").
+#
+# Two gates:
+#   1. Here. `min_score` drops the marginal ones (a remote-US level-II posting that scores
+#      under 50 has location and freshness working against it, on top of the level).
+#   2. The reader. A tagged posting is worth pursuing only when the posting's main
+#      requirements can each be matched to specific candidate experience. Level II without
+#      that evidence is left alone. The portal tags it so the reader can apply that test.
+# `server/scan/engine.py` prints the tag and the portal carries it into the row.
+level_ii:
+  enabled: true
+  patterns:
+    - ii
+    - iii
+    - l3
+    - l4
+    - level 2
+    - level ii
+    - "2 "
+  # A title that spans a range starting at level I ("Software Development Engineer I - III")
+  # is a level-I posting. Exempt it before the level patterns run.
+  level_i_range_pattern: "(?i)\\b(?:i|1)\\s*(?:-|–|—|/|to)\\s*(?:ii|iii|2|3)\\b"
+  min_score: 50
+
+# Your salary floor in CAD, from target.comp_floor_cad in the candidate profile.
+# Postings whose published top-of-band is below this get flagged BELOW YOUR FLOOR and
+# sorted down, never dropped -- a low band is information, not a disqualifier.
+# Job Bank publishes a rate ("$50.00 to $70.00 hourly"), which scan.py annualises at
+# 2000 hours and marks as an estimate. Postings with no published salary are unaffected.
+comp_floor_cad: 80000
+
+# Companies to never show, whatever the posting says.
+# YO AI Labs added 2026-09-24. Job Bank relists it under the generic title "software
+# developer", which hides the real title: a Senior Software Engineer contractor gig,
+# about 15 hours a week, paid per task. Verified at the source twice (2026-09-23).
+# That is a senior role and a contractor role, so the candidate asked for it to go.
+company_exclude:
+  - "YO AI Labs"
