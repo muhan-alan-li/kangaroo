@@ -3,7 +3,24 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+# The iCIMS browser-impersonation fetcher's own venv (curl_cffi).
+.venv-icims/
 
 # OS / editor
 .DS_Store
 *.swp
+
+# The candidate's own inputs: candidate_profile.yaml, the resume PDFs, the transcript,
+# and the outreach voice and samples. Personal data -- never commit.
+candidate/
+
+# Generated local state: the dedupe ledger, cached postings and descriptions, briefs,
+# the outreach log, board health, the sweep cache, logs, and resume backups. Some of it
+# is personal (outreach.jsonl holds contacts).
+state/
+
+# Outreach policy: holds the candidate's real sending and reply-to addresses.
+config/policy.yaml
+
+# Any PDF here is a personal document (resume, transcript).
+*.pdf
