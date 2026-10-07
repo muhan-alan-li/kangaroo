@@ -18,7 +18,7 @@ SWEEP = os.path.join(ROOT, "state", "workday_sweep.json")
 FILTERS = os.path.join(ROOT, "config", "filters.yaml")
 DESC = os.path.join(ROOT, "state", "descriptions.json")
 BRIEFS = os.path.join(ROOT, "state", "briefs")
-BRIEF_SCRIPT = os.path.join(ROOT, "bin", "posting_brief.py")
+BRIEF_SCRIPT = os.path.join(ROOT, "server", "brief", "generate.py")
 PYTHON = "/usr/bin/python3"
 BRIEF_STALE_AFTER = 900        # a .running marker older than this is a crashed run
 
@@ -44,7 +44,7 @@ MIME = {
 
 
 def tier_order():
-    """The rank the scan uses, so the dashboard cannot disagree with the digest."""
+    """The rank the scan uses, so the dashboard cannot disagree with the scan."""
     try:
         import yaml
         with open(FILTERS, encoding="utf-8") as fh:

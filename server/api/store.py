@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 
-from .config import (DESC, EXPIRED, FEED, HEALTH, SCAN, SWEEP, tier_order, window_days)
+from ..config import (DESC, EXPIRED, FEED, HEALTH, SCAN, SWEEP, tier_order, window_days)
 
 
 def read_json(path, default=None):
@@ -22,7 +22,7 @@ def read_json(path, default=None):
 def read_feed():
     """The live portal rows, oldest write last. The feed is the portal's list of postings.
 
-    It is written by the scan (scanner/portal.py): it accumulates postings across runs so a
+    It is written by the scan (scan/portal.py): it accumulates postings across runs so a
     live posting cannot vanish because one run's per-tier cap did not reach it, and it retires
     a posting after max_age_days. Falls back to the last scan when the feed does not exist yet,
     so a fresh clone still shows something.

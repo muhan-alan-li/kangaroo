@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import unquote
 
 from .briefs import brief_for, start_brief, start_contacts
-from .config import CLIENT, MIME
+from ..config import CLIENT, MIME
 from .store import collect, description_for, find_row
 
 
@@ -112,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
         """Start a brief. The only route that writes anything, and it writes one file.
 
         The generation is an agent run, so this cannot happen inside the request: the POST
-        launches `bin/posting_brief.py` detached and answers at once, and the page polls
+        launches `server/brief/generate.py` detached and answers at once, and the page polls
         GET /api/posting/<id> for the result.
         """
         path = self.path.split("?")[0]

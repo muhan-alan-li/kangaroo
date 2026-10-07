@@ -1,20 +1,25 @@
-"""The job-hunt server.
+"""The job-hunt server: the dashboard API plus the scan and research engines.
 
-This package is the Python half of the dashboard. It serves the static web client in
-`client/` and exposes the JSON API that client calls:
+One entry point, `python3 -m server <command>`. With no command it serves the dashboard;
+every other command runs one job. See `cli.py` for the command table. The package is split
+by role:
 
-    GET  /api/dashboard        everything the page shows, assembled per request
-    GET  /api/posting/<id>     one posting's detail view (facts, cached text, brief state)
-    POST /api/brief/<id>       start bin/posting_brief.py for one posting
+    api/      the dashboard HTTP service
+              app.py     routes (GET /api/dashboard, GET /api/posting/<id>,
+                         POST /api/brief/<id>, POST /api/deep-contacts/<id>)
+              store.py   reading `state/` -- feed, row, description, dashboard payload
+              briefs.py  the brief cache and the coroutine that launches generation
+              net.py     bind addresses (Tailscale address, loopback)
+              serve.py   the serving loop
+    scan/     the scan engine -- core, parsing, filters, ledger, posting, pipeline,
+              harvest, boardstate, portal, keywords, and sources/ (one module per feed).
+              engine.py is the `scan` command.
+    brief/    the on-demand research engine -- generate (the `brief` command), the
+              contact-research primitives, the DeepSeek client, the Node fetch helper
+    jobs/     the scheduled and maintenance jobs behind the rest of the commands
+              (sweep, retry, prune, refresh, mark-reported, probe-ats, harvest, table, feed)
+    config.py shared paths and constants
+    tests/    the two smoke tests
 
-The modules are split by what they touch, not by layer:
-
-    config.py   paths, constants, and the two config reads (tiers, window)
-    store.py    reading `state/` -- the feed, a row, a description, and the dashboard payload
-    briefs.py   the brief cache and the one writer this server starts
-    net.py      binding address (the Tailscale address, loopback)
-    app.py      the HTTP handler and the static file server
-    cli.py      argument parsing and the serving loop
-
-Run it with `python3 -m server` from the workspace root.
+Run it from the workspace root.
 """
