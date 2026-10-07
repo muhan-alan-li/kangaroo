@@ -1,7 +1,7 @@
 // Entry point for the scan-health page. Same payload as the postings page; only the
 // scan/board sections are rendered here.
-import {fetchDashboard} from './api.js?v=20261005a';
-import {renderScan, renderCost, renderHealth} from './render.js?v=20261005a';
+import {fetchDashboard} from './api.js?v=20261006a';
+import {renderScan, renderCost, renderHealth} from './render.js?v=20261006a';
 
 (async function main(){
   let D;

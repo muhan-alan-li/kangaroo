@@ -1,5 +1,5 @@
 // Pure view functions: every one takes data and returns markup. No fetching, no state.
-import {esc, postedOf} from './util.js?v=20261005a';
+import {esc, postedOf} from './util.js?v=20261006a';
 
 // The canonical location buckets. The scan's `tier` already aggregates every spelling of a
 // place -- Burnaby and Richmond into vancouver, San Mateo and SF into bay_area, "USA - Remote"
@@ -189,19 +189,11 @@ export function renderDetail(d, ranAt){
   if (d.running) contact += '<section><p class="spin">Searching the web…</p></section>';
   if (known.length)
     contact += '<section><h4>Addresses in the posting</h4>'
-      + known.map(a => `<div><a href="mailto:${esc(a)}">${esc(a)}</a></div>`).join('') + '</section>';
+      + known.map(a => `<div class="addr"><a href="mailto:${esc(a)}">${esc(a)}</a></div>`).join('') + '</section>';
   if (contacts.length)
     contact += '<section><h4>Researched contacts</h4>'
       + (b.contacts_source ? `<p class="ksub">via ${esc(b.contacts_source)}</p>` : '')
-      + contacts.map(c => `<div class="contact">
-          <div class="nm">${esc(c.name || 'Unnamed')}`
-          + (c.confidence ? `<span class="pill ${esc(c.confidence)}">${esc(c.confidence)}</span>` : '')
-          + '</div>'
-          + (c.role ? `<div class="rl">${esc(c.role)}</div>` : '')
-          + (c.email ? `<div><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>`
-                     : '<div class="mut">No published address</div>')
-          + (c.source ? `<div class="csrc">${esc(c.source)}</div>` : '')
-          + '</div>').join('') + '</section>';
+      + contacts.map(contactCard).join('') + '</section>';
   if (!known.length && !contacts.length && !d.running)
     contact += '<section><p class="mut">'
       + (ok ? 'No contact was found for this posting.'
@@ -219,6 +211,39 @@ export function renderDetail(d, ranAt){
 
   const body = P('summary', summary) + P('resume', resume) + P('contact', contact);
   return {title, sub, body};
+}
+
+// One researched contact as a card: an avatar of their initials, who they are (role and a short
+// bio), and how to reach them. `bio` is a newer field on the contact schema -- a brief written
+// before it existed carries only `role`, so the role doubles as the bio rather than leaving the
+// card thin. Every value is plain text from the brief, so it is escaped once, here.
+function initials(name){
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function contactCard(c){
+  const name = c.name || 'Unnamed';
+  const hasBio = !!(c.bio && c.bio.trim());
+  const role = hasBio ? (c.role || '') : '';
+  const bio = hasBio ? c.bio : (c.role || '');
+  return '<div class="contact">'
+    + '<div class="c-top">'
+    + `<span class="c-avatar" aria-hidden="true">${esc(initials(name))}</span>`
+    + '<div class="c-id">'
+    + `<div class="nm">${esc(name)}`
+    + (c.confidence ? `<span class="pill ${esc(c.confidence)}">${esc(c.confidence)}</span>` : '')
+    + '</div>'
+    + (role ? `<div class="rl">${esc(role)}</div>` : '')
+    + '</div></div>'
+    + (bio ? `<p class="c-bio">${esc(bio)}</p>` : '')
+    + '<div class="c-foot">'
+    + (c.email ? `<a class="c-mail" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`
+               : '<span class="mut">No published address</span>')
+    + (c.source ? `<a class="c-src" href="${esc(c.source)}" target="_blank" rel="noreferrer">source ↗</a>` : '')
+    + '</div></div>';
 }
 
 function keywordTable(p){

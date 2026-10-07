@@ -203,11 +203,23 @@ table.data tbody tr:last-child td{border-bottom:0}
 .btn[disabled]{opacity:.5;cursor:default}
 .btn.ghost{background:transparent;color:var(--chrome);border-color:var(--chrome)}
 .btn.ghost:hover{background:var(--chrome);color:#fff}
-#drawer .contact{border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;
-  margin-bottom:10px;background:var(--surface-2)}
-#drawer .contact .nm{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
-#drawer .contact .rl{color:var(--ink3);font-size:12.5px;margin:3px 0 6px}
-#drawer .contact .csrc{color:var(--ink4);font-size:11.5px;margin-top:6px}
+.addr{margin-bottom:4px}
+#drawer .contact{border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;
+  margin-bottom:12px;background:var(--surface);box-shadow:var(--shadow)}
+#drawer .contact .c-top{display:flex;align-items:flex-start;gap:12px}
+#drawer .contact .c-avatar{flex:none;width:38px;height:38px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--mono);
+  color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary-line)}
+#drawer .contact .c-id{min-width:0}
+#drawer .contact .nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;
+  flex-wrap:wrap}
+#drawer .contact .rl{color:var(--ink2);font-size:12.5px;margin-top:2px}
+#drawer .contact .c-bio{color:var(--ink2);font-size:13px;margin:11px 0 0}
+#drawer .contact .c-foot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;
+  padding-top:10px;border-top:1px solid var(--border);font-size:12.5px}
+#drawer .contact .c-mail{font-family:var(--mono);font-size:12px}
+#drawer .contact .c-src{color:var(--ink3);font-size:12px}
+#drawer .contact .c-src:hover{color:var(--primary)}
 .pill{display:inline-block;font:11px/1.6 var(--mono);padding:1px 7px;border-radius:4px;
   background:var(--lilac-100);border:1px solid var(--primary-line);color:var(--primary)}
 .pill.high{background:#f6ffed;border-color:#b7eb8f;color:#389e0d}
