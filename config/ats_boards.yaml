@@ -1,0 +1,185 @@
+# Public ATS job boards, verified by server/jobs/probe_ats.py.
+#
+# Every entry answered its board API with at least one open posting when it was last
+# probed. A wrong slug fails silently, so re-run the probe when a board stops
+# returning postings:
+#
+#     python3 -m server probe-ats
+#
+# Companies are grouped by ATS. Add new slugs to the CANDIDATES list in the probe
+# script, not by hand here, so the verification stays honest.
+
+
+# --- ashby (96 live boards) ---
+boards_ashby:
+  - {name: "OpenAI", ats: ashby, slug: openai}
+  - {name: "Harvey", ats: ashby, slug: harvey}
+  - {name: "Sierra", ats: ashby, slug: sierra}
+  - {name: "ElevenLabs", ats: ashby, slug: elevenlabs}
+  - {name: "ElevenLabs", ats: ashby, slug: ElevenLabs}
+  - {name: "Ramp", ats: ashby, slug: ramp}
+  - {name: "Notion Labs", ats: ashby, slug: notion}
+  - {name: "Apex", ats: ashby, slug: apex-technology-inc}
+  - {name: "Cohere", ats: ashby, slug: cohere}
+  - {name: "Cursor", ats: ashby, slug: cursor}
+  - {name: "Perplexity", ats: ashby, slug: perplexity}
+  - {name: "EliseAI", ats: ashby, slug: EliseAI}
+  - {name: "Neko", ats: ashby, slug: neko-health}
+  - {name: "TRM Labs", ats: ashby, slug: trm-labs}
+  - {name: "Baseten", ats: ashby, slug: baseten}
+  - {name: "Humanoid", ats: ashby, slug: humanoid}
+  - {name: "Radiant", ats: ashby, slug: radiant-industries}
+  - {name: "1X", ats: ashby, slug: 1x}
+  - {name: "Antares", ats: ashby, slug: Antares}
+  - {name: "Vanta", ats: ashby, slug: vanta}
+  - {name: "Heidi Health", ats: ashby, slug: heidihealth.com.au}
+  - {name: "Lovable", ats: ashby, slug: lovable}
+  - {name: "DualEntry", ats: ashby, slug: dualentry}
+  - {name: "Profound", ats: ashby, slug: Profound}
+  - {name: "Northwood", ats: ashby, slug: NorthwoodSpace}
+  - {name: "Genesis AI", ats: ashby, slug: genesis}
+  - {name: "Replit", ats: ashby, slug: replit}
+  - {name: "1Password", ats: ashby, slug: 1password}
+  - {name: "Suno", ats: ashby, slug: suno}
+  - {name: "Range", ats: ashby, slug: range}
+  - {name: "Factory", ats: ashby, slug: factory}
+  - {name: "Omnea", ats: ashby, slug: omnea}
+  - {name: "Writer", ats: ashby, slug: writer}
+  - {name: "Owner", ats: ashby, slug: owner}
+  - {name: "Supabase", ats: ashby, slug: supabase}
+  - {name: "Reflection", ats: ashby, slug: reflectionai}
+  - {name: "Synthesia", ats: ashby, slug: synthesia}
+  - {name: "Osmo", ats: ashby, slug: osmo}
+  - {name: "Rho", ats: ashby, slug: rho}
+  - {name: "Runway AI", ats: ashby, slug: runway-ml}
+  - {name: "Encord", ats: ashby, slug: encord}
+  - {name: "Sentry", ats: ashby, slug: sentry}
+  - {name: "Pliant", ats: ashby, slug: pliant}
+  - {name: "Scribe", ats: ashby, slug: scribe}
+  - {name: "Modal", ats: ashby, slug: modal}
+  - {name: "Taktile", ats: ashby, slug: taktile}
+  - {name: "Hex", ats: ashby, slug: hex}
+  - {name: "Bunch", ats: ashby, slug: bunch}
+  - {name: "n8n", ats: ashby, slug: n8n}
+  - {name: "Physical Intelligence", ats: ashby, slug: physicalintelligence}
+  - {name: "Partly", ats: ashby, slug: partly.com}
+  - {name: "WorkOS", ats: ashby, slug: workos}
+  - {name: "Linear", ats: ashby, slug: linear}
+  - {name: "Relay Financial", ats: ashby, slug: relay}
+  - {name: "ARQ", ats: ashby, slug: ARQ}
+  - {name: "Langdock", ats: ashby, slug: langdock}
+  - {name: "Parallel", ats: ashby, slug: parallel}
+  - {name: "Tabs", ats: ashby, slug: tabs}
+  - {name: "H Company", ats: ashby, slug: hcompany}
+  - {name: "Latent Health", ats: ashby, slug: latent}
+  - {name: "Monumental", ats: ashby, slug: monumental}
+  - {name: "White Circle", ats: ashby, slug: whitecircle}
+  - {name: "Conduct", ats: ashby, slug: conduct}
+  - {name: "Telli", ats: ashby, slug: telli}
+  - {name: "Lyric", ats: ashby, slug: lyric}
+  - {name: "Multiverse", ats: ashby, slug: multiverse}
+  - {name: "Stuut", ats: ashby, slug: stuut-ai}
+  - {name: "Granola", ats: ashby, slug: granola}
+  - {name: "Airbound", ats: ashby, slug: airbound}
+  - {name: "Vibe", ats: ashby, slug: vibe}
+  - {name: "General Intuition", ats: ashby, slug: generalintuition-medal}
+  - {name: "Lemfi", ats: ashby, slug: lemfi}
+  - {name: "Conveo", ats: ashby, slug: conveo}
+  - {name: "Lio", ats: ashby, slug: lio}
+  - {name: "Pika", ats: ashby, slug: pika}
+  - {name: "Sona", ats: ashby, slug: sona}
+  - {name: "Ambrook", ats: ashby, slug: ambrook}
+  - {name: "Cloaked", ats: ashby, slug: cloaked}
+  - {name: "Miter", ats: ashby, slug: miter}
+  - {name: "Duna", ats: ashby, slug: duna}
+  - {name: "Krea", ats: ashby, slug: krea}
+  - {name: "Nox Metals", ats: ashby, slug: nox-metals}
+  - {name: "Resend", ats: ashby, slug: resend}
+  - {name: "Solcoa Industries", ats: ashby, slug: solcoa}
+  - {name: "Centari", ats: ashby, slug: centari}
+  - {name: "Lyrebird Health", ats: ashby, slug: lyrebird-health}
+  - {name: "Prefect", ats: ashby, slug: prefect}
+  - {name: "Cradle", ats: ashby, slug: cradlebio}
+  - {name: "Parabola", ats: ashby, slug: parabola-io}
+  - {name: "Railway", ats: ashby, slug: railway}
+  - {name: "Ben", ats: ashby, slug: ben}
+  - {name: "Griffin", ats: ashby, slug: griffin}
+  - {name: "Hook", ats: ashby, slug: hook}
+  - {name: "GrottoAI", ats: ashby, slug: grotto}
+  - {name: "Symbiotic", ats: ashby, slug: symbiotic}
+  - {name: "Clerk", ats: ashby, slug: clerk}
+
+# --- greenhouse (64 live boards) ---
+boards_greenhouse:
+  - {name: "Databricks", ats: greenhouse, slug: databricks}
+  - {name: "Stripe", ats: greenhouse, slug: stripe}
+  - {name: "Anthropic", ats: greenhouse, slug: anthropic}
+  - {name: "Datadog", ats: greenhouse, slug: datadog}
+  - {name: "Cloudflare", ats: greenhouse, slug: cloudflare}
+  - {name: "Elastic", ats: greenhouse, slug: elastic}
+  - {name: "MongoDB", ats: greenhouse, slug: mongodb}
+  - {name: "Waymo", ats: greenhouse, slug: waymo}
+  - {name: "Brex", ats: greenhouse, slug: brex}
+  - {name: "Roblox", ats: greenhouse, slug: roblox}
+  - {name: "Samsara", ats: greenhouse, slug: samsara}
+  - {name: "Roku", ats: greenhouse, slug: roku}
+  - {name: "Coinbase", ats: greenhouse, slug: coinbase}
+  - {name: "Block", ats: greenhouse, slug: block}
+  - {name: "GitLab", ats: greenhouse, slug: gitlab}
+  - {name: "Flexport", ats: greenhouse, slug: flexport}
+  - {name: "Lyft", ats: greenhouse, slug: lyft}
+  - {name: "Scale AI", ats: greenhouse, slug: scaleai}
+  - {name: "Affirm", ats: greenhouse, slug: affirm}
+  - {name: "Pinterest", ats: greenhouse, slug: pinterest}
+  - {name: "Figma", ats: greenhouse, slug: figma}
+  - {name: "Robinhood", ats: greenhouse, slug: robinhood}
+  - {name: "Reddit", ats: greenhouse, slug: reddit}
+  - {name: "Airbnb", ats: greenhouse, slug: airbnb}
+  - {name: "Klaviyo", ats: greenhouse, slug: klaviyo}
+  - {name: "Twilio", ats: greenhouse, slug: twilio}
+  - {name: "Instacart", ats: greenhouse, slug: instacart}
+  - {name: "Grafana Labs", ats: greenhouse, slug: grafanalabs}
+  - {name: "Varda", ats: greenhouse, slug: vardaspace}
+  - {name: "Nuro", ats: greenhouse, slug: nuro}
+  - {name: "Asana", ats: greenhouse, slug: asana}
+  - {name: "Gusto", ats: greenhouse, slug: gusto}
+  - {name: "Vercel", ats: greenhouse, slug: vercel}
+  - {name: "Chainguard", ats: greenhouse, slug: chainguard}
+  - {name: "Engine", ats: greenhouse, slug: engine}
+  - {name: "Carta", ats: greenhouse, slug: carta}
+  - {name: "Faire", ats: greenhouse, slug: faire}
+  - {name: "Tulip", ats: greenhouse, slug: tulip}
+  - {name: "Chime", ats: greenhouse, slug: chime}
+  - {name: "Mixpanel", ats: greenhouse, slug: mixpanel}
+  - {name: "Mercury", ats: greenhouse, slug: mercury}
+  - {name: "Duolingo", ats: greenhouse, slug: duolingo}
+  - {name: "Discord", ats: greenhouse, slug: discord}
+  - {name: "Later", ats: greenhouse, slug: later}
+  - {name: "Snorkel AI", ats: greenhouse, slug: snorkelai}
+  - {name: "Dropbox", ats: greenhouse, slug: dropbox}
+  - {name: "ShopMy", ats: greenhouse, slug: shopmy}
+  - {name: "Squarespace", ats: greenhouse, slug: squarespace}
+  - {name: "AbCellera", ats: greenhouse, slug: abcellera}
+  - {name: "Betterment", ats: greenhouse, slug: betterment}
+  - {name: "Global Relay", ats: greenhouse, slug: globalrelay}
+  - {name: "Webflow", ats: greenhouse, slug: webflow}
+  - {name: "Tines", ats: greenhouse, slug: tines}
+  - {name: "InstaLILY AI", ats: greenhouse, slug: instalilyai}
+  - {name: "River AI", ats: greenhouse, slug: riverai}
+  - {name: "Cockroach Labs", ats: greenhouse, slug: cockroachlabs}
+  - {name: "Profluent", ats: greenhouse, slug: profluent}
+  - {name: "Ritual", ats: greenhouse, slug: ritual}
+  - {name: "CircleCI", ats: greenhouse, slug: circleci}
+  - {name: "Flipp", ats: greenhouse, slug: flipp}
+  - {name: "Hootsuite", ats: greenhouse, slug: hootsuite}
+  - {name: "Netlify", ats: greenhouse, slug: netlify}
+  - {name: "Airtable", ats: greenhouse, slug: airtable}
+  - {name: "Unbounce", ats: greenhouse, slug: unbounce}
+
+# --- lever (5 live boards) ---
+boards_lever:
+  - {name: "Palantir US", ats: lever, slug: palantir}
+  - {name: "Spotify", ats: lever, slug: spotify}
+  - {name: "Magnet Forensics", ats: lever, slug: magnetforensics}
+  - {name: "Flex", ats: lever, slug: Flex}
+  - {name: "Enveda", ats: lever, slug: enveda}
