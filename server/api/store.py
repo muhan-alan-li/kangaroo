@@ -60,7 +60,14 @@ def description_for(pid, row=None):
     text = (read_json(DESC, {}) or {}).get(str(pid))
     if text:
         return text
-    return (row or {}).get("description") or ""
+    if (row or {}).get("description"):
+        return row["description"]
+    # Pre-fix rows: source text that the portal dropped before it reached the cache still
+    # sits on the last scan's matched list.
+    for scan_row in (read_json(SCAN, {}) or {}).get("matched") or []:
+        if str(scan_row.get("id")) == str(pid) and scan_row.get("description"):
+            return scan_row["description"]
+    return ""
 
 
 def collect():

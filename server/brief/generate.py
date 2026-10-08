@@ -123,8 +123,13 @@ def description_for(row):
         return cache[pid], "cache"
     if row.get("description"):
         return row["description"], "row"
+    # Pre-fix rows: the portal kept `has_text: true` but dropped the source's text, so the
+    # feed row and the cache are both empty while the last scan still carries it.
+    for scan_row in (_read_json(SCAN_PATH, {}) or {}).get("matched") or []:
+        if str(scan_row.get("id")) == str(pid) and scan_row.get("description"):
+            return scan_row["description"], "scan"
     try:
-        from scan import portal
+        from ..scan import portal
     except Exception:  # noqa: BLE001
         return None, "none"
     if not portal._description_fetcher(row):

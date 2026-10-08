@@ -216,8 +216,17 @@ def harvest_descriptions(postings, cache, budget=DESC_BUDGET):
     """Fill `cache` with posting text for the ones that have a fetchable source.
 
     Returns (fetched, failed, skipped). A posting whose text is already cached, or which is
-    already carrying one from its source, is skipped without a request.
+    already carrying one from its source, is skipped without a request. Source-supplied
+    text (Job Bank detail pages, the Simplify feed) is seeded into the cache first, so it
+    survives the run instead of evaporating with the transient posting dict -- without
+    this the portal row keeps `has_text: true` but no text, and the brief later finds
+    nothing to read.
     """
+    for posting in postings:
+        pid = posting.get("id")
+        text = posting.get("description")
+        if pid and text and not cache.get(pid):
+            cache[pid] = re.sub(r"\s+", " ", text).strip()[:DESC_LIMIT]
     todo = []
     for posting in postings:
         pid = posting.get("id")
