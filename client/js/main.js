@@ -1,9 +1,12 @@
 // Entry point for the postings page: fetch the dashboard payload once, render the list, then
 // hand the table and the drawer their event handlers.
-import {fetchDashboard} from './api.js?v=20261006a';
-import {renderLocations, renderRows} from './render.js?v=20261006a';
-import {initTable} from './table.js?v=20261006a';
-import {initDetail} from './detail.js?v=20261006a';
+import {fetchDashboard} from './api.js?v=20261007n';
+import {renderLocations, renderRows} from './render.js?v=20261007n';
+import {initTable} from './table.js?v=20261007n';
+import {initDetail} from './detail.js?v=20261007n';
+import {initPrefs} from './prefs.js?v=20261007n';
+
+initPrefs();
 
 (async function main(){
   let D;

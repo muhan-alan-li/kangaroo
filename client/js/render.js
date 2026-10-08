@@ -1,5 +1,5 @@
 // Pure view functions: every one takes data and returns markup. No fetching, no state.
-import {esc, postedOf} from './util.js?v=20261006a';
+import {esc, postedOf} from './util.js?v=20261007n';
 
 // The canonical location buckets. The scan's `tier` already aggregates every spelling of a
 // place -- Burnaby and Richmond into vancouver, San Mateo and SF into bay_area, "USA - Remote"
@@ -21,24 +21,17 @@ export function renderLocations(D){
 }
 
 export function renderRows(D){
-  const rowsHtml = D.postings.map((p, i) => {
+  const rowsHtml = D.postings.map((p) => {
     const age = (p.age_days === null || p.age_days === undefined) ? '' : p.age_days + 'd';
     const po = postedOf(p, D.ran_at);
     const posted = po.date;
     const closing = (p.expires_in_days != null && p.expires_in_days <= 2)
       ? `<span class="closing">${p.expires_in_days}d left</span>` : '';
-    const gap = p.skills_gap || [];
-    const mails = [].concat(p.emails || [], p.verified_emails || []);
     const tier = p.tier || '';
-    return `<tr class="clickable" data-id="${esc(p.id)}" data-tier="${esc(tier)}" data-rank="${i}"
-        data-score="${p.score||0}" data-age="${p.age_days==null?999:p.age_days}"
+    return `<tr class="clickable" data-id="${esc(p.id)}" data-tier="${esc(tier)}"
         data-posted="${esc(posted)}" data-tierk="${D.tiers.indexOf(tier)}"
-        data-mail="${mails.length ? '1' : '0'}"
-        data-gap="${gap.length ? '1' : '0'}"
-        data-kw="${esc((p.keywords||[]).join(' '))} ${esc(mails.join(' '))}"
+        data-kw="${esc((p.keywords||[]).join(' '))}"
         data-company="${esc(p.company)}" data-title="${esc(p.title)}" data-location="${esc(p.location)}">
-      <td class="num">${i+1}</td>
-      <td class="score">${p.score ?? ''}</td>
       <td class="posted">${posted ? `<span${po.derived ? ' class="derived" title="derived from age"' : ''}>${esc(posted)}</span>` : '<span class="mut">—</span>'}${age ? `<span class="age">${age}</span>` : ''}${closing}</td>
       <td><span class="tier tag tier-${esc(tier)}" title="${esc(p.location||'')}"><i></i>${esc(LOCATION_LABEL[tier] || tier)}</span></td>
       <td class="co" title="${esc(p.company)}">${esc(p.company)}</td>
@@ -54,17 +47,41 @@ function kv(rows){
   return rows.map(([k,v]) => `<div class="k2">${esc(k)}</div><div class="v2">${esc(v)}</div>`).join('');
 }
 
+function num(n){
+  return (n === null || n === undefined) ? '—' : Number(n).toLocaleString();
+}
+
+// The status hero: one glance at what got checked. The headline names the board count,
+// and the four tiles carry the numbers worth watching. Deliberately neutral -- a board
+// that didn't answer is routine (usually a transient 403/429), not an alarm.
+export function renderHero(D){
+  const ran = D.ran_at ? D.ran_at.replace('T', ' ').slice(0, 16) : '—';
+  document.getElementById('hero').innerHTML =
+    '<div>'
+    + `<div class="herohead">${esc(Number(D.boards_total || 0).toLocaleString())} boards checked</div>`
+    + `<div class="herosub">last scan ${esc(ran)} · ${esc(D.window)}d window · sweep ${esc((D.sweep || {}).verdict || '—')}</div>`
+    + '</div>';
+  const tiles = [
+    ['Answering', num(D.boards_ok) + ' / ' + num(D.boards_total)],
+    ["Didn't answer", num(D.boards_failing)],
+    ['Live postings', num(D.matched)],
+    ['Collected', num(D.collected)],
+  ];
+  document.getElementById('statgrid').innerHTML = tiles.map(([label, value]) =>
+    `<div class="stat"><div class="n">${esc(value)}</div>`
+    + `<div class="l">${esc(label)}</div></div>`).join('');
+}
+
 export function renderScan(D){
   const s = D.sweep || {};
   document.getElementById('scan').innerHTML = kv([
     ['Ran', D.ran_at ? D.ran_at.replace('T', ' ').slice(0, 19) : '—'],
-    ['Window', D.window + 'd'],
-    ['Live', D.matched],
-    ['Collected', D.collected.toLocaleString()],
-    ['Source time', D.source_total + 's'],
-    ['Sweep', s.swept_at ? String(s.swept_at).replace('T', ' ').slice(0, 19) : '—'],
+    ['Boards checked', D.boards_total],
+    ['Answering', D.boards_ok],
+    ['Live postings', D.matched],
     ['Swept', s.count != null ? s.count : '—'],
-    ['Result', s.verdict || '—'],
+    ['Sweep result', s.verdict || '—'],
+    ['Source time', D.source_total + 's'],
   ]);
 }
 
@@ -80,21 +97,26 @@ export function renderCost(D){
 }
 
 export function renderHealth(D){
-  const s = D.sweep || {};
-  document.getElementById('healthsum').innerHTML = kv([
-    ['Answering', D.boards_ok],
-    ['Failing', D.boards_failing],
-    ['Known', D.boards_total],
-    ['Page-two skipped', s.page_two_skipped != null ? s.page_two_skipped : '—'],
-    ['Sweep wall', s.wall_seconds != null ? s.wall_seconds + 's' : '—'],
-    ['Productive / quiet', (s.productive ?? '—') + ' / ' + (s.quiet ?? '—')],
-  ]);
+  const failing = D.boards_failing || 0;
+  document.getElementById('failmeta').textContent = failing ? String(failing) : 'none';
+  // One plain-English line: how many didn't answer, what kind of failure, when the next
+  // retry runs. The full list stays one click away in the disclosure below.
+  let note = 'Every board answered the last sweep.';
+  if (failing){
+    const kinds = [...new Set(D.failing.map(b => b.error_kind).filter(Boolean))];
+    const next = D.failing.map(b => b.next_check_at || '').filter(Boolean).sort()[0] || '';
+    note = `${failing} board${failing === 1 ? '' : 's'} didn't answer`
+      + (kinds.length ? ` (${kinds.join(', ')})` : '')
+      + (next ? ` · next retry ${next.slice(0, 16).replace('T', ' ')}` : '')
+      + '.';
+  }
+  document.getElementById('failnote').textContent = note;
   document.getElementById('failrows').innerHTML = D.failing.map(b =>
     `<tr><td>${esc(b.name)}</td><td class="r">${esc(b.consecutive_failures)}</td>`
     + `<td class="dim">${esc(b.error_kind)}</td>`
     + `<td class="dim">${esc(b.last_error)}</td>`
     + `<td class="r">${esc((b.next_check_at||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
-    || '<tr><td colspan="5" class="dim">No failing boards</td></tr>';
+    || '<tr><td colspan="5" class="dim">Nothing here — every board answered.</td></tr>';
 }
 
 // --- the detail drawer -----------------------------------------------------

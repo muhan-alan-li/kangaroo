@@ -1,18 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>postings · job scan</title>
-<link rel="stylesheet" href="/styles.css?v=20261006a">
+<script>
+try {
+  var t = localStorage.getItem('jobhunt-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+} catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Cascadia+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css?v=20261007n">
 </head>
 <body>
 <header class="topbar">
+  <span class="brand">Muhan's Job Board</span>
   <nav class="tabs">
     <a href="/" class="on">postings</a>
     <a href="/health.html">scan health</a>
   </nav>
   <span class="topmeta" id="topmeta"></span>
+  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark">light</button>
 </header>
 
 <main class="page">
@@ -21,25 +32,21 @@
       <span class="prompt" aria-hidden="true">&gt;</span>
       <input type="search" id="q" placeholder="Filter company or title…">
       <select id="locfilter" aria-label="location"></select>
-      <span class="sep"></span>
-      <div class="seg" role="group" aria-label="filters">
-        <span class="chip" id="mailonly">address</span>
-        <span class="chip" id="gaps">gaps</span>
-      </div>
     </div>
 
+    <div class="tablewrap">
     <table class="shortlist"><thead><tr>
-      <th data-s="rank" class="r">#</th><th data-s="score" class="r">Score</th>
       <th data-s="posted">Posted</th><th data-s="tier">Location</th>
       <th data-s="company">Company</th><th data-s="title">Title</th>
     </tr></thead><tbody id="rows"></tbody></table>
     <div class="none" id="empty" style="display:none">No rows match</div>
+    </div>
 
     <div class="pager" id="pager">
       <span class="pginfo" id="pginfo"></span>
       <span class="pgspacer"></span>
       <label class="pgsize">rows <select id="pgsize">
-        <option>25</option><option>50</option><option>100</option>
+        <option value="fit">Fit</option><option value="10">10</option><option value="25">25</option><option value="50">50</option>
       </select></label>
       <button class="pg" id="pgprev" type="button" aria-label="previous page">&lsaquo;</button>
       <span class="pgnum" id="pgnum"></span>
@@ -62,6 +69,6 @@
   </div>
   <div id="dbody"></div>
 </aside>
-<script type="module" src="/js/main.js?v=20261006a"></script>
+<script type="module" src="/js/main.js?v=20261007n"></script>
 </body>
 </html>

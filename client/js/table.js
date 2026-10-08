@@ -5,10 +5,10 @@
 // look, and a posting's age is what makes it stale. Anything undated sorts last in either
 // direction (see applySort), so it can never head a newest-first list.
 const DEFAULT_SORT = {key: 'posted', dir: -1};
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 export function initTable(D){
-  let activeTier = null, needle = '', mailOnly = false, gapsOnly = false;
+  let activeTier = null, needle = '';
   let sortKey = DEFAULT_SORT.key, sortDir = DEFAULT_SORT.dir;
   let page = 1, pageSize = DEFAULT_PAGE_SIZE;
 
@@ -17,17 +17,14 @@ export function initTable(D){
 
   function matches(tr){
     const okT = !activeTier || tr.dataset.tier === activeTier;
-    const okM = !mailOnly || tr.dataset.mail === '1';
-    const okG = !gapsOnly || tr.dataset.gap === '1';
     const hay = (tr.dataset.company + ' ' + tr.dataset.title + ' ' + tr.dataset.location
                  + ' ' + tr.dataset.kw).toLowerCase();
     const okQ = !needle || hay.includes(needle);
-    return okT && okQ && okM && okG;
+    return okT && okQ;
   }
 
   // Filter, then slice out the current page. Sorting has already reordered the DOM, so the
-  // surviving rows arrive in the order the reader chose. The "#" column is renumbered over the
-  // whole filtered set (not per page), so it stays a stable position under the active sort.
+  // surviving rows arrive in the order the reader chose.
   function apply(){
     const hits = [];
     for (const tr of body.rows) if (matches(tr)) hits.push(tr);
@@ -39,7 +36,6 @@ export function initTable(D){
 
     const keep = new Set(hits.slice(start, end));
     body.querySelectorAll('tr').forEach(tr => tr.classList.toggle('flt', !keep.has(tr)));
-    hits.forEach((tr, i) => { tr.cells[0].textContent = i + 1; });
 
     empty.style.display = hits.length ? 'none' : 'block';
     renderPager(hits.length, pages, start, end);
@@ -69,10 +65,6 @@ export function initTable(D){
           return x ? -1 : 1;
         }
         if (k === 'tier') return (+a.dataset.tierk - +b.dataset.tierk) * sortDir;
-        if (k === 'score' || k === 'age' || k === 'rank'){
-          const attr = (k === 'rank') ? 'rank' : k;
-          return (+a.dataset[attr] - +b.dataset[attr]) * sortDir;
-        }
         return ((a.dataset[k] || '').localeCompare(b.dataset[k] || '')) * sortDir;
       });
       rows.forEach(r => body.appendChild(r));
@@ -87,12 +79,6 @@ export function initTable(D){
   document.getElementById('locfilter').addEventListener('change', e => {
     activeTier = e.target.value || null; page = 1; apply();
   });
-  document.getElementById('mailonly').addEventListener('click', e => {
-    mailOnly = !mailOnly; e.target.classList.toggle('on', mailOnly); page = 1; apply();
-  });
-  document.getElementById('gaps').addEventListener('click', e => {
-    gapsOnly = !gapsOnly; e.target.classList.toggle('on', gapsOnly); page = 1; apply();
-  });
 
   document.getElementById('pgprev').addEventListener('click', () => {
     page--; apply();
@@ -101,12 +87,16 @@ export function initTable(D){
     page++; apply();
   });
   document.getElementById('pgsize').addEventListener('change', e => {
-    pageSize = +e.target.value; page = 1; apply();
+    const v = e.target.value;
+    try { localStorage.setItem('jobhunt-pagesize', v); } catch (err) {}
+    if (v === 'fit') fitToViewport();
+    else { pageSize = +v; pinWrapper(); }
+    page = 1; apply();
   });
 
   // The direction a column takes on its FIRST click. Newest-first is what "date posted" should
-  // do; highest-score-first is what the score column should do. Everything else starts ascending.
-  const FIRST_DIR = {posted: -1, score: -1};
+  // do; everything else starts ascending.
+  const FIRST_DIR = {posted: -1};
   document.querySelectorAll('th[data-s]').forEach(th => th.addEventListener('click', () => {
     const k = th.dataset.s;
     sortDir = (sortKey === k) ? -sortDir : (FIRST_DIR[k] || 1);
@@ -126,5 +116,67 @@ export function initTable(D){
     def.classList.add('sorted');
     def.dataset.dir = DEFAULT_SORT.dir > 0 ? 'asc' : 'desc';
   }
+
+  // Fit the page to the viewport: rows fill exactly the space between the table head
+  // and the pager, so the whole page lands with no scrollbar. A manual rows choice
+  // disables the fit until "Fit" is picked again; the choice persists.
+  const FIT_MIN = 3, FIT_MAX = 30;
+  let storedSize = 'fit';
+  try { storedSize = localStorage.getItem('jobhunt-pagesize') || 'fit'; } catch (e) {}
+  document.getElementById('pgsize').value = storedSize;
+
+  function measured(){
+    const toolbar = document.querySelector('.toolbar');
+    const thead = document.querySelector('.shortlist thead');
+    const pager = document.getElementById('pager');
+    const tr = body.rows[0];
+    return {
+      frame: 72 + 20 + 28, // topbar + page top pad + page bottom pad
+      toolbar: toolbar ? toolbar.offsetHeight : 60,
+      thead: thead ? thead.getBoundingClientRect().height : 48,
+      pager: pager ? pager.offsetHeight : 49,
+      row: tr ? tr.getBoundingClientRect().height : 52,
+    };
+  }
+  // Reserve exactly one page of space so the pager never moves under filtering.
+  function pinWrapper(){
+    const m = measured();
+    const wrap = document.querySelector('.tablewrap');
+    if (wrap) wrap.style.minHeight = Math.ceil(m.thead + pageSize * m.row + 2) + 'px';
+  }
+  function fitToViewport(){
+    const m = measured();
+    pageSize = Math.min(FIT_MAX, Math.max(FIT_MIN,
+      Math.floor((window.innerHeight - m.frame - m.toolbar - m.thead - m.pager) / m.row)));
+    pinWrapper();
+    apply();
+    // The estimate above can't see card borders/margins or sub-pixel rounding, which are
+    // exactly what leave a phantom few pixels of scroll. Trim a row at a time until the
+    // document truly fits; bounded so a tiny viewport just scrolls a little.
+    let guard = 0;
+    while (document.documentElement.scrollHeight > window.innerHeight + 1
+           && pageSize > FIT_MIN && guard++ < 10){
+      pageSize--; pinWrapper(); apply();
+    }
+  }
+
+  if (storedSize === 'fit') fitToViewport();
+  else { pageSize = +storedSize || DEFAULT_PAGE_SIZE; pinWrapper(); }
+
+  // Row heights shift once the webfonts arrive; refit then, and on window resizes.
+  if (document.fonts && document.fonts.ready){
+    document.fonts.ready.then(() => {
+      if (document.getElementById('pgsize').value === 'fit'){ fitToViewport(); apply(); }
+      else pinWrapper();
+    });
+  }
+  let resizeT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => {
+      if (document.getElementById('pgsize').value === 'fit'){ fitToViewport(); apply(); }
+    }, 150);
+  });
+
   applySort();
 }

@@ -1,42 +1,56 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>scan health · job scan</title>
-<link rel="stylesheet" href="/styles.css?v=20261006a">
+<script>
+try {
+  var t = localStorage.getItem('jobhunt-theme');
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+} catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Cascadia+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css?v=20261007n">
 </head>
 <body>
 <header class="topbar">
+  <span class="brand">Muhan's Job Board</span>
   <nav class="tabs">
     <a href="/">postings</a>
     <a href="/health.html" class="on">scan health</a>
   </nav>
   <span class="topmeta" id="topmeta"></span>
+  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark">light</button>
 </header>
 
 <main class="page">
+  <div class="card hero">
+    <div class="heroin" id="hero"></div>
+    <div class="statgrid" id="statgrid"></div>
+  </div>
+
   <div class="card">
-    <div class="cardhead"><h2>Scan</h2></div>
+    <div class="cardhead"><h2>Boards &amp; scan</h2></div>
     <div class="kvblock" id="scan"></div>
-  </div>
-
-  <div class="card">
-    <div class="cardhead"><h2>Source cost</h2></div>
-    <table class="data"><thead><tr>
-      <th>Source</th><th class="r">Collected</th><th class="r">Seconds</th></tr>
-    </thead><tbody id="costrows"></tbody></table>
-  </div>
-
-  <div class="card">
-    <div class="cardhead"><h2>Board health</h2></div>
-    <div class="kvblock" id="healthsum"></div>
-    <table class="data"><thead><tr>
-      <th>Board</th><th class="r">Fails</th><th>Kind</th><th>Last error</th><th>Next check</th>
-    </tr></thead><tbody id="failrows"></tbody></table>
+    <p class="sumnote" id="failnote"></p>
+    <details class="inset">
+      <summary>Boards that didn't answer (<span id="failmeta"></span>)</summary>
+      <table class="data"><thead><tr>
+        <th>Board</th><th class="r">Fails</th><th>Kind</th><th>Last error</th><th>Next check</th>
+      </tr></thead><tbody id="failrows"></tbody></table>
+    </details>
+    <details class="inset">
+      <summary>Source cost</summary>
+      <table class="data"><thead><tr>
+        <th>Source</th><th class="r">Collected</th><th class="r">Seconds</th></tr>
+      </thead><tbody id="costrows"></tbody></table>
+    </details>
   </div>
 </main>
 
-<script type="module" src="/js/health.js?v=20261006a"></script>
+<script type="module" src="/js/health.js?v=20261007n"></script>
 </body>
 </html>

@@ -1,7 +1,10 @@
 // Entry point for the scan-health page. Same payload as the postings page; only the
 // scan/board sections are rendered here.
-import {fetchDashboard} from './api.js?v=20261006a';
-import {renderScan, renderCost, renderHealth} from './render.js?v=20261006a';
+import {fetchDashboard} from './api.js?v=20261007n';
+import {renderHero, renderScan, renderCost, renderHealth} from './render.js?v=20261007n';
+import {initPrefs} from './prefs.js?v=20261007n';
+
+initPrefs();
 
 (async function main(){
   let D;
@@ -12,6 +15,7 @@ import {renderScan, renderCost, renderHealth} from './render.js?v=20261006a';
     return;
   }
   document.getElementById('topmeta').textContent = D.ran_at ? D.ran_at.slice(0, 10) : '';
+  renderHero(D);
   renderScan(D);
   renderCost(D);
   renderHealth(D);

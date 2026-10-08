@@ -4,6 +4,23 @@
    generous padding, a blurred drawer, a segmented control); the terminal supplies the chrome
    (a dark mono status bar, a `>` prompt, monospaced numbers). The page is lilac. */
 :root{
+  --bg:#141021; --surface:#1e1830; --surface-2:#251e3d;
+  --lilac-100:#2a2342; --lilac-200:#372c55; --lilac-300:#4a3d73;
+  --border:#2e2748; --border-2:#453a68;
+  --ink:#ece8f7; --ink2:#b9b3d0; --ink3:#8f89a8; --ink4:#655f7e;
+  --primary:#b58cff; --primary-2:#c9a6ff; --primary-soft:#2c2347; --primary-line:#5b4a8a;
+  --success:#7ee787; --warning:#e3b341; --error:#ff7b72;
+  --chrome:#171226; --chrome-2:#221b38; --chrome-ink:#efeafd; --chrome-dim:#a89cc9;
+  --chrome-line:#2e2748;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --tabmono:"Cascadia Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"Outfit",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --serif:Georgia,"Times New Roman",serif;
+  --topbar:72px; --r:8px; --r-lg:12px;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35);
+}
+/* Light keeps the original Lilac values. Dark is the default (see :root). */
+:root[data-theme="light"]{
   --bg:#f4f0fb; --surface:#ffffff; --surface-2:#faf7ff;
   --lilac-100:#f9f0ff; --lilac-200:#f0e6fb; --lilac-300:#e2d3f6;
   --border:#ede9f5; --border-2:#d9d3e8;
@@ -12,34 +29,38 @@
   --success:#52c41a; --warning:#faad14; --error:#ff4d4f;
   --chrome:#3d345c; --chrome-2:#4d4373; --chrome-ink:#efeafd; --chrome-dim:#b3a8d4;
   --chrome-line:#4f4574;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
-  --topbar:44px; --r:8px; --r-lg:12px;
   --shadow:0 1px 2px rgba(23,16,45,.04),0 4px 16px rgba(23,16,45,.05);
 }
+/* Dark-mode readability for the verdict/pill accents that were tuned for white. */
+:root[data-theme="dark"] .pill.high{background:#16281a;border-color:#2f6b33;color:#7ee787}
+:root[data-theme="dark"] .pill.medium{background:#2e2611;border-color:#7a6210;color:#e3b341}
+:root[data-theme="dark"] .verdict{background:#2c2347}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
-  font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:15px;line-height:1.55;font-family:var(--sans);
   -webkit-font-smoothing:antialiased}
 a{color:var(--primary);text-decoration:none}
 a:hover{text-decoration:underline}
 :focus-visible{outline:2px solid var(--primary);outline-offset:1px}
 
-/* Dark terminal chrome ----------------------------------------------------- */
-.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:18px;
-  height:var(--topbar);padding:0 18px;background:var(--chrome);color:var(--chrome-ink);
+/* Header bar ----------------------------------------------------------------- */
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:22px;
+  height:var(--topbar);padding:0 22px;background:var(--chrome);color:var(--chrome-ink);
   border-bottom:1px solid var(--chrome-line)}
-.tabs{display:flex;align-self:stretch;gap:2px}
-.tabs a{display:flex;align-items:center;padding:0 13px;color:var(--chrome-dim);
-  font:12px/1 var(--mono);letter-spacing:.03em;text-decoration:none;
-  border-bottom:2px solid transparent}
+.brand{font-family:var(--sans);font-size:25px;font-weight:600;color:var(--chrome-ink);
+  letter-spacing:.01em;white-space:nowrap}
+.tabs{display:flex;align-self:stretch;gap:6px}
+.tabs a{display:flex;align-items:center;padding:0 14px;color:var(--chrome-dim);
+  font-family:var(--sans);font-size:18px;font-weight:500;text-decoration:none;
+  border-bottom:3px solid transparent}
 .tabs a:hover{color:var(--chrome-ink);text-decoration:none}
 .tabs a.on{color:var(--chrome-ink);border-bottom-color:var(--primary-2)}
 .topmeta{margin-left:auto;color:var(--chrome-dim);font:11.5px/1 var(--mono)}
 
 /* Cards + page ------------------------------------------------------------- */
-.page{max-width:1440px;margin:0 auto;padding:20px 20px 70px}
+.page{max-width:1440px;margin:0 auto;padding:20px 20px 28px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+  box-shadow:var(--shadow);overflow:clip;margin-bottom:18px}
 .cardhead{display:flex;align-items:baseline;gap:12px;padding:15px 20px;border-bottom:1px solid var(--border)}
 .cardhead h2{margin:0;font-size:15px;font-weight:600;color:var(--ink)}
 .cardhead .cardmeta{margin-left:auto;color:var(--ink3);font:11.5px/1 var(--mono)}
@@ -57,6 +78,10 @@ select#locfilter{appearance:none;background:var(--surface);border:1px solid var(
   min-width:180px;background-image:linear-gradient(45deg,transparent 50%,var(--ink3) 50%),linear-gradient(135deg,var(--ink3) 50%,transparent 50%);
   background-position:calc(100% - 17px) 14px,calc(100% - 12px) 14px;background-size:5px 5px;background-repeat:no-repeat}
 select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--lilac-200)}
+.themebtn{margin-left:4px;background:transparent;border:1px solid var(--chrome-line);
+  color:var(--chrome-dim);border-radius:6px;padding:4px 10px;cursor:pointer;
+  font:11.5px/1 var(--mono)}
+.themebtn:hover{color:var(--chrome-ink);border-color:var(--chrome-dim)}
 .sep{width:1px;height:20px;background:var(--border-2);margin:0 4px}
 .seg{display:inline-flex;background:var(--lilac-100);border:1px solid var(--border);
   border-radius:var(--r);padding:2px;gap:2px}
@@ -69,28 +94,24 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 .chip.on b{color:var(--primary)}
 
 /* antd-flavoured table ------------------------------------------------------ */
-.shortlist{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;
+.shortlist{width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;
   font-variant-numeric:tabular-nums;table-layout:fixed}
-.shortlist th,.shortlist td{padding:11px 16px;text-align:left;vertical-align:middle;
+.shortlist th,.shortlist td{padding:14px 18px;text-align:left;vertical-align:middle;
   border-bottom:1px solid var(--border)}
 .shortlist thead th{position:sticky;top:var(--topbar);z-index:10;background:var(--surface-2);
-  padding:12px 16px;font-size:12.5px;font-weight:600;color:var(--ink2);white-space:nowrap;
+  padding:13px 18px;font-size:13.5px;font-weight:600;color:var(--ink2);white-space:nowrap;
   cursor:pointer;user-select:none}
 .shortlist thead th:hover{color:var(--ink)}
 .shortlist thead th.sorted{color:var(--primary)}
 .shortlist thead th.sorted::after{content:" ↓";font-size:11px}
 .shortlist thead th.sorted[data-dir=asc]::after{content:" ↑"}
 .shortlist th.r,.shortlist td.r{text-align:right}
-.shortlist th:nth-child(1),.shortlist td:nth-child(1){width:48px}
-.shortlist th:nth-child(2),.shortlist td:nth-child(2){width:66px}
-.shortlist th:nth-child(3),.shortlist td:nth-child(3){width:128px}
-.shortlist th:nth-child(4),.shortlist td:nth-child(4){width:160px}
-.shortlist th:nth-child(5),.shortlist td:nth-child(5){width:220px}
+.shortlist th:nth-child(1),.shortlist td:nth-child(1){width:205px}
+.shortlist th:nth-child(2),.shortlist td:nth-child(2){width:160px}
+.shortlist th:nth-child(3),.shortlist td:nth-child(3){width:220px}
 .shortlist tbody tr:hover td{background:var(--lilac-100)}
 .shortlist tbody tr.clickable{cursor:pointer}
-.shortlist td.num{color:var(--ink4);font:12px/1 var(--mono);text-align:right}
-.shortlist td.score{font:600 13px/1 var(--mono);color:var(--primary);text-align:right}
-.shortlist td.posted{font:12.5px/1 var(--mono);color:var(--ink2);white-space:nowrap}
+.shortlist td.posted{font:12.5px/1.4 var(--tabmono);color:var(--ink2);white-space:nowrap}
 .shortlist td.co{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shortlist td.title{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shortlist td.loc{color:var(--ink3)}
@@ -101,8 +122,13 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 tbody tr.flt{display:none}
 .none{padding:20px;color:var(--ink3);font-size:13.5px}
 
+/* The table always shows at most one page (10 rows). The wrapper reserves the full
+   page's height so the pager below never shifts when a filter leaves fewer rows. */
+.tablewrap{min-height:580px}
+
 /* antd Tag for the location cell */
 .tag{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);font-size:12.5px;
+  font-family:var(--tabmono);
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag i{width:7px;height:7px;border-radius:50%;background:var(--ink4);flex:none}
 .tier-vancouver i{background:#52c41a}.tier-remote_canada i{background:#13a8a8}
@@ -123,6 +149,25 @@ tbody tr.flt{display:none}
 
 /* Health page -------------------------------------------------------------- */
 h2{font-size:15px;font-weight:600;color:var(--ink);margin:0}
+/* Status hero: the one-glance verdict plus the four numbers worth watching. */
+.hero{padding:16px 22px}
+.heroin{display:flex;align-items:center;gap:14px}
+.herohead{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.herosub{color:var(--ink3);font-size:13px;margin-top:2px}
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+.stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 16px}
+.stat .n{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat .l{color:var(--ink3);font-size:12.5px;margin-top:2px}
+/* The one-line failing summary plus the two disclosures live inside the second card. */
+.sumnote{margin:0 20px;color:var(--ink2);font-size:13.5px;padding:2px 0 14px}
+details.inset{margin:0 20px 16px;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--surface-2)}
+details.inset summary{cursor:pointer;padding:11px 14px;font-size:13.5px;font-weight:500;
+  color:var(--ink2);list-style:none}
+details.inset summary::-webkit-details-marker{display:none}
+details.inset summary:hover{color:var(--primary)}
+details.inset table.data{background:var(--surface);border-top:1px solid var(--border)}
 .kvblock{display:grid;grid-template-columns:180px 1fr;padding:6px 20px 12px}
 .kvblock .k2,.kvblock .v2{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
 .kvblock .k2{color:var(--ink2)}
@@ -139,8 +184,11 @@ table.data tr.total td{font-weight:600;background:var(--primary-soft)}
 table.data tbody tr:last-child td{border-bottom:0}
 
 @media(max-width:900px){
-  .page{padding:14px 12px 48px}
-  .topbar{padding:0 12px;gap:10px}
+  .page{padding:14px 12px 20px}
+  .topbar{padding:0 12px;gap:12px}
+  .brand{font-size:19px}
+  .tabs a{font-size:15px;padding:0 8px}
+  .statgrid{grid-template-columns:1fr 1fr}
   input[type=search]{min-width:0;flex:1}
 }
 
@@ -153,9 +201,11 @@ table.data tbody tr:last-child td{border-bottom:0}
   box-shadow:-18px 0 50px rgba(23,16,45,.14);overflow-y:auto;transform:translateX(102%);
   transition:transform .26s cubic-bezier(.32,.72,0,1);z-index:41}
 #drawer.on{transform:none}
-.dh{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(18px);
+.dh{position:sticky;top:0;background:var(--surface);backdrop-filter:saturate(180%) blur(18px);
   -webkit-backdrop-filter:saturate(180%) blur(18px);border-bottom:1px solid var(--border);
   padding:18px 22px 0;z-index:2}
+:root[data-theme="light"] .dh{background:rgba(255,255,255,.92)}
+:root[data-theme="dark"] .dh{background:rgba(30,24,48,.92)}
 .dh h3{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.25;
   padding-right:34px}
 .dh .dsub{color:var(--ink2);font-size:13px}
