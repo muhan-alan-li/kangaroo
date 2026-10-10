@@ -142,7 +142,10 @@ def main(argv=None):
         for future in futures.as_completed(pending):
             item = pending[future]
             try:
-                rows, board_ok, _dropped, err = future.result()
+                # _probe_board returns five values (rows, ok, dropped, err, stat). Unpacking
+                # four made every due board raise here and be recorded as a failed probe with
+                # a bogus ValueError -- the whole pass would silently "fail" board by board.
+                rows, board_ok, _dropped, err, _stat = future.result()
             except Exception as exc:  # noqa: BLE001
                 rows, board_ok, err = [], False, f"{type(exc).__name__}: {exc}"
             results.append({"key": item["key"], "name": item["state"].get("name"),
