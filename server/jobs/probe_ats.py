@@ -41,12 +41,7 @@ net.install()
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/120.0 Safari/537.36")
 
-BOARD_URL = {
-    "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
-    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}",
-    "lever": "https://api.lever.co/v0/postings/{slug}?mode=json",
-    "workable": "https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true",
-}
+from ..scan.endpoints import BOARD_URL
 
 # Candidate list. BC/Canada first, then US majors that hire new grads at volume.
 # A wrong slug costs one request and is dropped by the probe.

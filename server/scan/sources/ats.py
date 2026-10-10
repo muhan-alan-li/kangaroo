@@ -11,6 +11,7 @@ import sys
 
 from .. import boardstate
 from ..core import ROOT, http_get, load_yaml
+from ..endpoints import BOARD_URL
 from ..parsing import parse_age_days
 from ..posting import make_posting
 from .icims import fetch_icims_boards
@@ -77,7 +78,7 @@ def src_ats(cfg, filters):
         if not (ats and slug):
             continue
         if ats == "greenhouse":
-            url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+            url = BOARD_URL["greenhouse"].format(slug=slug)
             data = http_get(url)
             if not data:
                 continue
@@ -105,7 +106,7 @@ def src_ats(cfg, filters):
                     raw_id=str(job.get("id")),
                 ))
         elif ats == "lever":
-            data = http_get(f"https://api.lever.co/v0/postings/{slug}?mode=json")
+            data = http_get(BOARD_URL["lever"].format(slug=slug))
             if not data:
                 continue
             try:
@@ -129,7 +130,7 @@ def src_ats(cfg, filters):
                     ats="lever", raw_id=str(job.get("id")),
                 ))
         elif ats == "ashby":
-            data = http_get(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
+            data = http_get(BOARD_URL["ashby"].format(slug=slug))
             if not data:
                 continue
             try:

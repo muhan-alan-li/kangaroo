@@ -14,6 +14,7 @@ import urllib.request
 
 from .. import boardstate
 from ..core import WORKDAY_ROLE_WORDS, http_get
+from ..endpoints import BOARD_URL
 from ..parsing import parse_age_days
 from ..posting import apply_signature, make_posting
 from .workday import workday_region_ok
@@ -31,7 +32,7 @@ from .workday import workday_region_ok
 # so the ledger reports each once and then absorbs it.
 
 JSON_VENDOR_URLS = {
-    "workable": "https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true",
+    "workable": BOARD_URL["workable"],
     "smartrecruiters": ("https://api.smartrecruiters.com/v1/companies/{slug}"
                         "/postings?limit=100&offset={offset}"),
     "rippling": "https://ats.rippling.com/api/v1/board/{slug}/jobs",
