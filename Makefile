@@ -60,7 +60,7 @@ test: ## Run the four smoke tests
 	$(PYTHON) server/tests/test_retry.py
 
 bump: ## Bump the client cache-buster after editing client/
-	$(PYTHON) bin/client_version.py --bump
+	$(PYTHON) -m server bump --bump
 
 ## --- containers ----------------------------------------------------------
 

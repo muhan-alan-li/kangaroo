@@ -10,7 +10,7 @@ what the files are, how a day runs, and the rules that always apply.
     candidate/                       The candidate's own inputs, and the single source of truth for every
                                      application field -- read this before writing any answer. Holds
                                      candidate_profile.yaml (parsed resume + `answers_bank`), resume-text.md
-                                     (text of every PDF; refresh with `bin/resume_text.py`), candidate/resume/
+                                     (text of every PDF; refresh with `python3 -m server resume-text`), candidate/resume/
                                      (the PDFs and tailored variants), candidate/documents/ (uploads: transcript and
                                      similar), and outreach-voice/ + outreach-samples/ (voice evidence).
     config/                          filters.yaml (matches, tiers, comp floor), sources.yaml, ats_boards.yaml,
@@ -31,7 +31,7 @@ what the files are, how a day runs, and the rules that always apply.
                                      table, detail, util). The detail drawer has Summary / Resumé / Contact
                                      tabs; contact research and resumé-tailoring advice live in the latter
                                      two. Plain HTML/CSS/ES modules -- no build step and no npm; edit and reload.
-                                     Client assets carry a `?v=` cache-buster: run `bin/client_version.py --bump`
+                                     Client assets carry a `?v=` cache-buster: run `python3 -m server bump --bump`
                                      after editing them, or tailscale serve's Last-Modified-only caching can
                                      leave a browser holding one stale module and break the ES-module graph
                                      (a page with an empty table).
@@ -53,9 +53,6 @@ what the files are, how a day runs, and the rules that always apply.
                                      client/ + API. Production: `--api-only` drops static serving and
                                      binds loopback, and tailscale serve hosts client/ on 8443 and
                                      proxies /api here.
-    bin/                             The two standalone tools that are not part of the server package:
-                                     resume_text.py (regenerates candidate/resume-text.md from the PDFs)
-                                     and client_version.py (the client cache-buster).
     state/                           seen.jsonl, outreach.jsonl, last_scan.json, board_health.json
                                      (per-board Workday health and its retry schedule),
                                      workday_sweep.json (the cache the daily scan reads instead of

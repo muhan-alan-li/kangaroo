@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Bump the cache-busting version on the dashboard's client assets.
 
 `tailscale serve` sends only `Last-Modified`, so a browser can reuse an old ES module for a few
@@ -6,11 +5,11 @@ minutes. If a changed module imports a name the cached one does not export, the 
 graph fails and the page renders empty -- the table with no rows. Versioning every relative
 import and both entry points (and the stylesheet) forces a fresh fetch.
 
-    /usr/bin/python3 bin/client_version.py            # print the current version
-    /usr/bin/python3 bin/client_version.py --bump     # today's date plus a letter
-    /usr/bin/python3 bin/client_version.py --set 20261006a
+    python3 -m server bump            # print the current version
+    python3 -m server bump --bump     # today's date plus a letter
+    python3 -m server bump --set 20261006a
 
-Run `--bump` after any change to `client/js/*.js`, `client/styles.css`, or the two HTML files.
+Run `bump --bump` after any change to `client/js/*.js`, `client/styles.css`, or the two HTML files.
 """
 from __future__ import annotations
 
@@ -20,7 +19,9 @@ import os
 import re
 from datetime import date
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# This file lives at server/jobs/bump.py, so it walks up three levels to the workspace root:
+# bump.py -> jobs/ -> server/ -> root.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CLIENT = os.path.join(ROOT, "client")
 IMPORT_RE = re.compile(r"from '\./([\w-]+)\.js(\?v=[^']*)?'")
 ENTRY_RE = re.compile(r'(src="/js/[\w-]+\.js)(\?v=[^"]*)?(")')
@@ -52,11 +53,11 @@ def set_version(version):
     return changed
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description="Show or bump the client cache-busting version.")
     ap.add_argument("--bump", action="store_true", help="today's date plus the next letter")
     ap.add_argument("--set", dest="value", help="use this version string verbatim")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.value:
         version = args.value
@@ -75,7 +76,3 @@ def main():
         print("updated", os.path.relpath(path, ROOT))
     print("version:", version)
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
