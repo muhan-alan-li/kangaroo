@@ -17,6 +17,13 @@ what the files are, how a day runs, and the rules that always apply.
                                      workday_boards.yaml, json_boards.yaml, policy.yaml (autonomy, caps,
                                      outreach and sending rules), source_candidates.md (the register of
                                      every source considered).
+    docker/                          The container image and its two entry points: Dockerfile
+                                     (python:3.13-slim plus tzdata, pyyaml, curl_cffi, pillow),
+                                     compose.yaml (the scan and retry services: server/, config/
+                                     and candidate/ read-only, state/ read-write, public DNS
+                                     instead of Pi-hole, user 1000:1000), entrypoint.sh
+                                     (sweep-if-stale, scan, mark-reported under one flock) and
+                                     entrypoint-retry.sh (retry, then prune after a clean run).
     client/                          The dashboard's web client, served by the server/ package. Two pages: index.html
                                      (the postings table) and health.html (scan cost and Workday board health),
                                      sharing styles.css -- the "Lilac" theme, a mix of Ant Design primitives,
@@ -56,6 +63,9 @@ what the files are, how a day runs, and the rules that always apply.
                                      feed has revealed, for server/jobs/probe_ats.py), resume-backups/
                                      (every superseded resume PDF), plus scan.log and retry.log (the
                                      two no-agent jobs' captured output).
+    systemd/                         The two timers and their services: job-scan.{service,timer}
+                                     (Mon-Fri 09:00, 13:00, 17:00) and job-retry.{service,timer}
+                                     (Sunday 22:00), symlinked into ~/.config/systemd/user/.
 
 **Auto-apply is retired, and so is its workspace (2026-10-07).** The agent no longer fills or submits
 applications. The `drafts/` folders, the application ledger (`state/applied.jsonl`) and `reports/` are all gone, so
@@ -64,19 +74,35 @@ is still logged in `state/outreach.jsonl`.
 
 ## How a day runs
 
-1. **09:00, 13:00 and 17:00 every day.** `job-scan` is a **no-agent** Hermes cron job: it runs
-   `~/.hermes/scripts/job-scan-store.sh` and the model is never invoked. The script sweeps Workday when its cache
-   is stale, runs `/usr/bin/python3 -m server scan --per-tier 5`, then marks the run's ids reported. Its stdout is
-   empty on purpose — there is no digest, no Discord message and nothing to deliver. Everything it writes goes to
-   `state/` (`last_scan.json`, `seen.jsonl`, `portal_feed.jsonl`, `descriptions.json`, `board_health.json`) and to
-   `state/scan.log`; the dashboard reads `state/` on every request, so refreshing it IS publishing.
-2. **Sunday 22:00, weekly.** `job-retry` is the second no-agent job: it runs
-   `~/.hermes/scripts/job-retry.sh`, which re-checks only the Workday boards whose backoff has come up and records
-   the outcome in `state/board_health.json`. After a clean retry it also runs `server/jobs/prune_boards.py`, which
-   removes boards that are structurally dead (a Workday 404/422 — a wrong career-site name — which no retry can
-   fix) from `config/workday_boards.yaml` and `state/board_health.json`. It never removes on a transient failure,
-   because a throttled run fails every board at once. It shares the scan's lock, so the two never hit Workday at
-   once, and it is silent and `deliver: local` like the scan; its output is in `state/retry.log`.
+1. **Mon–Fri 09:00, 13:00 and 17:00.** `job-scan.timer` is a systemd user timer that
+   starts `job-scan.service`, a oneshot that runs `docker compose -f docker/compose.yaml
+   run --rm scan`. The scan runs inside the `job-scan` container (`docker/Dockerfile` +
+   `docker/entrypoint.sh`: sweep-if-stale, `server scan --per-tier 5`, mark-reported),
+   with `server/`, `config/` and `candidate/` mounted read-only and `state/` read-write,
+   so the dashboard reads the results as before. The container's `dns:` points at
+   1.1.1.1/8.8.8.8 instead of Pi-hole, so the scan's burst of lookups never touches the
+   home network's 1000-queries-per-60s rate limit. The unit files live in `systemd/` and
+   are symlinked into `~/.config/systemd/user/`; a missed slot (sleep, off) simply waits
+   for the next one (`Persistent=false`), and `state/.scan.lock` still excludes a manual
+   host run.
+   Its stdout is empty on purpose — everything goes to `state/scan.log`.
+   The old Hermes `job-scan` no-agent job is retired; `~/.hermes/scripts/job-scan-store.sh`
+   stays on disk as the record of what the entrypoint replaced. Manual use:
+   `make scan-docker`, or `systemctl --user start job-scan.service` for one immediate run.
+2. **Sunday 22:00, weekly.** `job-retry.timer` is the second systemd timer: it starts
+   `job-retry.service`, a oneshot that runs `docker compose -f docker/compose.yaml run
+   --rm retry`. The retry pass (`docker/entrypoint-retry.sh`: `server retry`, then `server
+   prune` after a clean run) re-checks only the Workday boards whose backoff has come up
+   and records the outcome in `state/board_health.json`, under the same public-DNS bypass
+   as the scan — it hits the same Workday hosts, so sharing Pi-hole's bucket would be the
+   same failure. After a clean retry it also runs `server/jobs/prune_boards.py`, which
+   removes boards that are structurally dead (a Workday 404/422 — a wrong career-site name
+   — which no retry can fix) from `config/workday_boards.yaml` and `state/board_health.json`
+   (the retry service mounts `config/` read-write for exactly this; the scan keeps it
+   read-only). It never removes on a transient failure. It shares the scan's lock, so the
+   two never hit Workday at once. Output is in `state/retry.log`. The old Hermes `job-retry`
+   job is retired like `job-scan` above. Manual use: `docker compose -f docker/compose.yaml
+   run --rm --entrypoint /usr/local/bin/retry-entrypoint retry --dry-run`.
 3. **On the user's go-ahead.** The agent fills the application in a real browser, screenshots it, queues it, and
    submits on one approval.
 

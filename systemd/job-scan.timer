@@ -1,0 +1,17 @@
+[Unit]
+Description=Job scan schedule: Mon-Fri 09:00, 13:00, 17:00 America/Vancouver
+
+[Timer]
+# Weekdays only: the scan is for acting on, and nobody acts on Saturday.
+# Times are system-local, and this machine is America/Vancouver (see `timedatectl`).
+OnCalendar=Mon-Fri 09:00:00
+OnCalendar=Mon-Fri 13:00:00
+OnCalendar=Mon-Fri 17:00:00
+# No Persistent=true: after a sleep, firing every missed slot at once is how the
+# old Hermes job stampeded full scans within the same second. A missed weekday
+# slot simply waits for the next one; the 7-day posting window loses nothing.
+Persistent=false
+Unit=job-scan.service
+
+[Install]
+WantedBy=timers.target

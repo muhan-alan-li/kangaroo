@@ -1,0 +1,14 @@
+[Unit]
+Description=Workday retry pass (containerized; DNS bypasses Pi-hole)
+Documentation=file:///home/muhan-li/job-hunt/docker/compose.yaml
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/muhan-li/job-hunt
+# Re-checks the Workday boards that did not answer and prunes structurally-dead
+# configs afterwards. Shares the scan's lock, so a retry and a scan never overlap.
+# Output goes to state/retry.log. Trigger by hand with:
+#   systemctl --user start job-retry.service
+ExecStart=/usr/bin/docker compose -f /home/muhan-li/job-hunt/docker/compose.yaml run --rm retry

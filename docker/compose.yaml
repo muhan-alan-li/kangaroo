@@ -1,0 +1,64 @@
+# `docker compose -f docker/compose.yaml run --rm scan` -- one scheduled scan.
+#
+# The two lines that matter are under `dns:`. Docker writes those addresses into
+# the container's /etc/resolv.conf INSTEAD of copying the host's, so this run
+# asks Cloudflare/Google directly and Pi-hole (192.168.1.10) never sees the
+# burst that used to trip its 1000-queries-per-60s per-client limit. Verify with:
+#
+#     docker compose -f docker/compose.yaml run --rm --entrypoint cat scan /etc/resolv.conf
+#
+# Volumes: code, config and the candidate profile are read-only bind mounts, so a
+# curveball edit applies to the next run with no rebuild; state/ is read-write,
+# so the ledger, portal feed, sweep cache and logs land on the host where the
+# dashboard (which still runs on the host) reads them. server/ is bind-mounted
+# rather than COPYed for the same reason -- the image holds the interpreter and
+# dependencies only. Rebuild only when docker/Dockerfile changes.
+#
+# `user:` keeps container-written state files owned by you (1000:1000), not root.
+services:
+  scan:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: job-scan:latest
+    working_dir: /work
+    user: "1000:1000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      # The iCIMS fetcher normally runs out of the host's .venv-icims, which is not
+      # mounted here; the image carries curl_cffi in its system python instead, so
+      # point the fetcher at it. Honored by server/scan/sources/icims.py.
+      JOB_SCAN_ICIMS_PYTHON: /usr/local/bin/python
+    volumes:
+      - ../server:/work/server:ro
+      - ../config:/work/config:ro
+      - ../candidate:/work/candidate:ro
+      - ../state:/work/state
+    # The entrypoint (sweep-if-stale, scan, mark-reported) is COPYed into the image.
+    # Override it for one-off runs, e.g.:
+    #   ... run --rm --entrypoint python scan -m server scan --source jobbank --no-write
+
+  # The Sunday retry pass: re-checks Workday boards whose backoff came up, then
+  # prunes structurally-dead ones. Same image and DNS bypass as the scan; the one
+  # difference is config/, which is read-write here because `server prune` removes
+  # dead boards from config/workday_boards.yaml (the scan itself never writes config).
+  retry:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: job-scan:latest
+    working_dir: /work
+    user: "1000:1000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      JOB_SCAN_ICIMS_PYTHON: /usr/local/bin/python
+    volumes:
+      - ../server:/work/server:ro
+      - ../config:/work/config
+      - ../candidate:/work/candidate:ro
+      - ../state:/work/state
+    entrypoint: ["/usr/local/bin/retry-entrypoint"]

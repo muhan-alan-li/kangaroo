@@ -1,0 +1,13 @@
+[Unit]
+Description=Workday retry schedule: Sundays 22:00 America/Vancouver
+
+[Timer]
+# Its own pass on its own clock because it hits the same Workday hosts as the
+# scan: running the two together is the documented way to make the IP throttle
+# worse. Sunday night is far from every scan slot, and the shared lock enforces it.
+OnCalendar=Sun 22:00:00
+Persistent=false
+Unit=job-retry.service
+
+[Install]
+WantedBy=timers.target

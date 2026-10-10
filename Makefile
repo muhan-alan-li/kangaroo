@@ -14,7 +14,7 @@ API_PORT ?= 8788
 SERVICE ?= job-dashboard.service
 
 .DEFAULT_GOAL := help
-.PHONY: help serve api start stop restart status logs health scan test bump clean
+.PHONY: help serve api start stop restart status logs health scan test bump clean image scan-docker timer
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -59,6 +59,17 @@ test: ## Run the two smoke tests
 
 bump: ## Bump the client cache-buster after editing client/
 	$(PYTHON) bin/client_version.py --bump
+
+## --- containers ----------------------------------------------------------
+
+image: ## Build the job-scan container image (only needed when docker/Dockerfile changes)
+	docker compose -f docker/compose.yaml build
+
+scan-docker: ## Run one full scan in the container (sweep-if-stale, scan, mark-reported)
+	docker compose -f docker/compose.yaml run --rm scan
+
+timer: ## Show the next scheduled scan slots
+	systemctl --user list-timers job-scan.timer --no-pager
 
 clean: ## Remove __pycache__ directories
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +

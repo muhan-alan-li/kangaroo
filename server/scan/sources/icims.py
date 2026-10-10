@@ -39,7 +39,13 @@ def fetch_icims_boards(boards, cfg):
     rather than presented as fresh.
     """
     opts = cfg.get("icims") or {}
-    python = opts.get("python") or os.path.join(ROOT, ".venv-icims", "bin", "python")
+    # JOB_SCAN_ICIMS_PYTHON points at an interpreter that already has curl_cffi.
+    # It exists for the containerized scan: the image carries curl_cffi in its
+    # system python (see docker/compose.yaml) and does not mount .venv-icims.
+    # On the host it is unset and the venv below is used, as before.
+    python = (os.environ.get("JOB_SCAN_ICIMS_PYTHON")
+              or opts.get("python")
+              or os.path.join(ROOT, ".venv-icims", "bin", "python"))
     script = os.path.join(ROOT, "server", "scan", "icims_fetch.py")
     if not os.path.exists(python):
         sys.stderr.write(
