@@ -27,6 +27,7 @@ from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
 from ...scan import boardstate  # noqa: E402
+from ...scan.core import atomic_write  # noqa: E402
 OUT = os.path.join(ROOT, "data", "config", "workday_boards.yaml")
 
 PATTERNS = (
@@ -118,10 +119,8 @@ def main(argv=None):
     for r in rows:
         body.append('  - {name: %s, ats: workday, tenant: %s, wd: %s, site: %s, urls: %d}'
                     % (json.dumps(r["tenant"]), r["tenant"], r["wd"], r["site"], r["urls"]))
-    tmp = "%s.%d.tmp" % (OUT, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(OUT) as fh:
         fh.write("\n".join(body) + "\n")
-    os.replace(tmp, OUT)
     print("[harvest] wrote %s (%d boards)" % (OUT, len(rows)))
     return 0
 

@@ -38,13 +38,8 @@ import time
 from concurrent import futures
 
 from ...scan import boardstate, boards  # noqa: E402
+from ...scan.core import role_regex  # noqa: E402
 from ...scan.sources.workday import _probe_board  # noqa: E402
-
-
-def role_regex(opts):
-    words = tuple(opts.get("title_words") or ("engineer", "engineering", "developer",
-                                              "programmer", "swe", "sde"))
-    return re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
 
 
 def reason_of(err):

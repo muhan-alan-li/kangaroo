@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 import os
 
-from .core import ROOT, load_yaml
+from .core import ROOT, atomic_write, load_yaml
 
 
 def harvest_boards(collected, write=True):
@@ -36,13 +36,10 @@ def harvest_boards(collected, write=True):
         row["last_seen"] = now
         row["postings_seen"] = int(row.get("postings_seen") or 0) + 1
     if write:
-        # Atomic, and the temp name carries the pid: two scans can run at once.
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
+        with atomic_write(path) as fh:
             json.dump({"updated_at": now,
                        "boards": sorted(boards.values(), key=lambda b: (b["ats"], b["slug"]))},
                       fh, indent=1)
-        os.replace(tmp, path)
     return len(boards)
 
 

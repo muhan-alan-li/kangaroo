@@ -21,6 +21,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 from ..config import ROOT
+from ..scan.pipeline import cap_per_tier, sort_key
 
 # Discord's dark palette, so the image sits on the client without a visible seam.
 BG = (30, 31, 34)
@@ -85,38 +86,16 @@ def load_rows(path, per_tier, limit):
 
     `matched` in last_scan.json is in discovery order, not rank order -- the scan sorts only
     when it prints. Taking the first N per tier from it therefore picks arbitrary postings,
-    not the best ones, so the rank has to be reapplied here: tier order from filters.yaml,
-    then score, then age.
+    not the best ones, so the rank is reapplied here with the scan's own key
+    (`pipeline.sort_key`, over the `tier_rank` the scan stamped) and its own
+    per-tier cap (`pipeline.cap_per_tier`).
     """
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
 
-    filters_path = os.path.join(ROOT, "data", "config", "filters.yaml")
-    tiers = []
-    try:
-        import yaml
-        with open(filters_path, encoding="utf-8") as fh:
-            tiers = [str(t.get("name")) for t in (yaml.safe_load(fh) or {}).get("location_tiers") or []]
-    except Exception:  # noqa: BLE001 -- ranking still works without the tier order
-        pass
-    rank = {name: i for i, name in enumerate(tiers)}
-
-    def key(p):
-        age = p.get("age_days")
-        return (rank.get(p.get("tier") or "untiered", len(rank) + 1),
-                -int(p.get("score") or 0),
-                age if age is not None else 999)
-
-    matched = sorted(data.get("matched") or [], key=key)
+    matched = sorted(data.get("matched") or [], key=sort_key)
     if per_tier:
-        counts, kept = {}, []
-        for p in matched:
-            tier = p.get("tier") or "untiered"
-            if counts.get(tier, 0) >= per_tier:
-                continue
-            counts[tier] = counts.get(tier, 0) + 1
-            kept.append(p)
-        matched = kept
+        matched, _dropped = cap_per_tier(matched, per_tier)
     if limit:
         matched = matched[:limit]
     return data, matched

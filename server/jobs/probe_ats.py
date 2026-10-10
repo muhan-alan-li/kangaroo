@@ -31,7 +31,7 @@ import urllib.request
 
 from ..config import ROOT
 from ..scan import boards, net
-from ..scan.core import load_yaml
+from ..scan.core import atomic_write, load_yaml
 
 # Same egress guard the scan uses: the probe hits api.ashbyhq.com, boards-api.greenhouse.io
 # and friends once per candidate slug, which is the duplicate-lookup burst that trips the
@@ -336,10 +336,8 @@ def _save_failures(failures):
     os.makedirs(os.path.dirname(_failures_path()), exist_ok=True)
     payload = {"updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "failures": {k: {"failures": n} for k, n in sorted(failures.items())}}
-    tmp = "%s.%d.tmp" % (_failures_path(), os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(_failures_path()) as fh:
         json.dump(payload, fh, indent=1)
-    os.replace(tmp, _failures_path())
 
 
 def _previous_boards():

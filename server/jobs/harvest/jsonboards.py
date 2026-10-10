@@ -32,6 +32,7 @@ import sys
 from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
+from ...scan.core import atomic_write  # noqa: E402
 OUT = os.path.join(ROOT, "data", "config", "json_boards.yaml")
 
 # vendor -> (regex capturing the slug, human name)
@@ -114,10 +115,8 @@ def main(argv=None):
         for slug in slugs:
             body.append("  - {name: %s, ats: %s, slug: %s}"
                         % (json.dumps(slug), vendor, json.dumps(slug)))
-    tmp = "%s.%d.tmp" % (OUT, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(OUT) as fh:
         fh.write("\n".join(body) + "\n")
-    os.replace(tmp, OUT)
     print("[harvest] wrote %s (%d boards)" % (OUT, total))
     return 0
 

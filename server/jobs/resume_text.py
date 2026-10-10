@@ -19,9 +19,7 @@ import shutil
 import subprocess
 import sys
 
-# This file lives at server/jobs/resume_text.py, so it walks up three levels to the workspace root:
-# resume_text.py -> jobs/ -> server/ -> root.
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ..config import ROOT
 RESUME_DIR = os.path.join(ROOT, "data", "candidate", "resume")
 DOCS_DIR = os.path.join(ROOT, "data", "candidate", "documents")
 OUT = os.path.join(ROOT, "data", "candidate", "resume-text.md")

@@ -26,46 +26,14 @@ so the usual shell tools work on it:
 
 import argparse
 import json
-import os
 import re
 import sys
 import time
-import urllib.request
 
-from ..config import ROOT
-FEED = ("https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions"
-        "/dev/.github/scripts/listings.json")
-CACHE = os.path.join(ROOT, "data", "state", "simplify_listings.json")
-CACHE_MINUTES = 10
-UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+from .feed import load_feed
 
 # The feed's only explicit "no". Everything else is "Other" or an offer.
 NO_SPONSORSHIP = {"does not offer sponsorship"}
-
-
-def fetch(refresh=False):
-    """Return the parsed feed, from the ten-minute cache when it is fresh."""
-    if not refresh and os.path.exists(CACHE):
-        age_min = (time.time() - os.path.getmtime(CACHE)) / 60.0
-        if age_min < CACHE_MINUTES:
-            try:
-                with open(CACHE, encoding="utf-8") as fh:
-                    return json.load(fh)
-            except (OSError, ValueError):
-                pass
-    req = urllib.request.Request(FEED, headers={"User-Agent": UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=90) as resp:
-        raw = resp.read().decode("utf-8", "replace")
-    records = json.loads(raw)
-    if isinstance(records, dict):
-        records = records.get("listings") or []
-    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
-    tmp = "%s.%d.tmp" % (CACHE, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(records, fh)
-    os.replace(tmp, CACHE)
-    return records
 
 
 def rows(records, days, where, grep, include_closed):
@@ -125,7 +93,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     try:
-        records = fetch(refresh=args.refresh)
+        records, _origin = load_feed(refresh=args.refresh, max_age_seconds=600)
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write("simplify_recent: could not load the feed: %s\n" % exc)
         return 1

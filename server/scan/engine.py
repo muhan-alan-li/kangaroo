@@ -14,7 +14,7 @@ import sys
 import time
 
 from . import boardstate
-from .core import ROOT, load_yaml
+from .core import ROOT, atomic_write, load_yaml
 from .harvest import harvest_boards, unprobed_boards
 from .ledger import ledger_path, load_ledger, save_ledger
 from .pipeline import cap_per_tier, normalize_and_filter, sort_key, tier_counts
@@ -179,7 +179,7 @@ def main(argv=None):
             fresh.append(posting)
 
     if not args.no_write:
-        # pid-tagged temp + os.replace, like every other state writer here: the dashboard,
+        # atomic_write, like every other state writer here: the dashboard,
         # `refresh`, `table` and the brief all read this file, and a crash mid-write would
         # leave them parsing a truncated file -- which they swallow into an empty result,
         # i.e. a quiet day the scan never had.
@@ -188,10 +188,8 @@ def main(argv=None):
                    "matched": kept,
                    "tier_counts": tier_counts(kept, filters), "dropped": dropped}
         last_scan = os.path.join(ROOT, "data", "state", "last_scan.json")
-        tmp = f"{last_scan}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
+        with atomic_write(last_scan) as fh:
             json.dump(payload, fh, indent=2)
-        os.replace(tmp, last_scan)
         save_ledger(ledger)
         # The portal feed is the dashboard's list: it accumulates postings, enriches them with
         # resume keywords and published addresses, and retires them after max_age_days. It is

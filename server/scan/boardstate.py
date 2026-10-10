@@ -23,7 +23,7 @@ import json
 import os
 import re
 
-from .core import ROOT
+from .core import ROOT, atomic_write
 
 HEALTH_PATH = os.path.join(ROOT, "data", "state", "board_health.json")
 SWEEP_PATH = os.path.join(ROOT, "data", "state", "workday_sweep.json")
@@ -160,10 +160,8 @@ def save(boards, path=None, extra=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     payload = {"updated_at": now_iso(), "boards": dict(sorted(boards.items()))}
     payload.update(extra or {})
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(path) as fh:
         json.dump(payload, fh, indent=1)
-    os.replace(tmp, path)
     return len(boards)
 
 
@@ -371,10 +369,8 @@ def add_tombstones(entries, path=None, now=None):
         lines.append(f"  - {{key: {key}, tenant: {tenant}, wd: {wd}, site: {site}, "
                      f"pruned_at: {row.get('pruned_at') or stamp}, "
                      f"reason: {json.dumps(row.get('reason') or 'structural failure')}}}")
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(path) as fh:
         fh.write("\n".join(lines) + "\n")
-    os.replace(tmp, path)
     return known
 
 
@@ -432,10 +428,8 @@ def write_sweep(postings, path=None, meta=None):
     payload = {"swept_at": now_iso(), "count": len(postings)}
     payload.update(meta or {})
     payload["postings"] = postings
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(path) as fh:
         json.dump(payload, fh)
-    os.replace(tmp, path)
     return path
 
 

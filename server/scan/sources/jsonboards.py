@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 
 from .. import boardstate
-from ..core import WORKDAY_ROLE_WORDS, http_get
+from ..core import http_get, role_regex
 from ..endpoints import BOARD_URL
 from ..parsing import parse_age_days
 from ..posting import apply_signature, make_posting
@@ -303,8 +303,7 @@ def fetch_json_boards(boards, cfg):
     window = int(opts.get("window_days") or 7)
     timeout = int(opts.get("timeout") or 25)
     max_pages = int(opts.get("max_pages") or 2)
-    words = tuple(opts.get("title_words") or WORKDAY_ROLE_WORDS)
-    role_re = re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
+    role_re = role_regex(opts)
 
     out, dead, filtered, undated = [], 0, 0, 0
     kept = {}

@@ -14,6 +14,7 @@ import time
 import urllib.request
 
 from ..config import ROOT
+from ..scan.core import atomic_write
 FEED = ("https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions"
         "/dev/.github/scripts/listings.json")
 CACHE = os.path.join(ROOT, "data", "state", "simplify_listings.json")
@@ -37,8 +38,6 @@ def load_feed(refresh=False, max_age_seconds=CACHE_SECONDS):
     if isinstance(records, dict):
         records = records.get("listings") or []
     os.makedirs(os.path.dirname(CACHE), exist_ok=True)
-    tmp = "%s.%d.tmp" % (CACHE, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(CACHE) as fh:
         json.dump(records, fh)
-    os.replace(tmp, CACHE)
     return records, "download"

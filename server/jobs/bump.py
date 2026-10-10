@@ -19,9 +19,7 @@ import os
 import re
 from datetime import date
 
-# This file lives at server/jobs/bump.py, so it walks up three levels to the workspace root:
-# bump.py -> jobs/ -> server/ -> root.
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ..config import ROOT
 CLIENT = os.path.join(ROOT, "client")
 IMPORT_RE = re.compile(r"from '\./([\w-]+)\.js(\?v=[^']*)?'")
 ENTRY_RE = re.compile(r'(src="/js/[\w-]+\.js)(\?v=[^"]*)?(")')

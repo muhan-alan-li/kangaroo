@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import os
 
-from .core import ROOT
+from .core import ROOT, atomic_write
 
 
 # ----------------------------------------------------------------------- ledger
@@ -36,11 +36,6 @@ def load_ledger():
 
 def save_ledger(entries):
     os.makedirs(os.path.dirname(ledger_path()), exist_ok=True)
-    # The temp name carries the pid: two scans can run at once (two cron jobs that were
-    # both overdue fire within a second of each other), and a shared temp path lets one
-    # process rename the file while the other is still writing into it.
-    tmp = f"{ledger_path()}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(ledger_path()) as fh:
         for rec in entries.values():
             fh.write(json.dumps(rec, sort_keys=True) + "\n")
-    os.replace(tmp, ledger_path())

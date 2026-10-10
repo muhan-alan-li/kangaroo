@@ -18,6 +18,7 @@ import sys
 from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
+from ...scan.core import atomic_write  # noqa: E402
 OUT = os.path.join(ROOT, "data", "config", "icims_boards.yaml")
 HOST = re.compile(r"https?://([a-z0-9-]+\.icims\.com)/jobs/", re.I)
 
@@ -69,10 +70,8 @@ def main(argv=None):
     body = [HEADER, "\n# --- icims (%d boards) ---" % len(hosts), "boards_icims:"]
     for host in hosts:
         body.append("  - {name: %s, ats: icims, slug: %s}" % (json.dumps(host), json.dumps(host)))
-    tmp = "%s.%d.tmp" % (OUT, os.getpid())
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(OUT) as fh:
         fh.write("\n".join(body) + "\n")
-    os.replace(tmp, OUT)
     print("[harvest] wrote %s (%d hosts)" % (OUT, len(hosts)))
     return 0
 

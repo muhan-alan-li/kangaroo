@@ -36,6 +36,7 @@ import time
 from datetime import datetime, timezone
 
 from ..config import ROOT
+from ..scan.core import atomic_write
 from . import llm, research
 
 STATE = os.path.join(ROOT, "data", "state")
@@ -77,10 +78,8 @@ def _read_text(path):
 
 def _atomic_write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    with atomic_write(path) as fh:
         fh.write(text)
-    os.replace(tmp, path)
 
 
 def now_iso():

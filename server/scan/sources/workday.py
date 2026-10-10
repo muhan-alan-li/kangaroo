@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 
 from .. import boardstate
-from ..core import UA, WORKDAY_ROLE_WORDS, is_dns_error
+from ..core import UA, is_dns_error, role_regex
 from ..filters import region_signals
 from ..posting import make_posting
 
@@ -284,8 +284,7 @@ def fetch_workday_boards(boards, cfg, cursors=None):
     timeout = int(opts.get("timeout") or 25)
     search_text = str(opts.get("search_text", "engineer"))
 
-    words = tuple(opts.get("title_words") or WORKDAY_ROLE_WORDS)
-    role_re = re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
+    role_re = role_regex(opts)
 
     out, dead, filtered = [], 0, 0
     cursors = cursors or {}

@@ -27,7 +27,7 @@ import time
 from concurrent import futures
 from datetime import date, datetime, timedelta, timezone
 
-from .core import ROOT, UA, http_get, strip_tags
+from .core import ROOT, UA, atomic_write, http_get, strip_tags
 from .keywords import _profile_skills, extract_emails, extract_keywords
 from .posting import apply_signature
 
@@ -53,14 +53,7 @@ def _read_json(path, default):
         return default
 
 
-def _atomic_write(path, text):
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write(text)
-    os.replace(tmp, path)
-
-
-def load_feed():
+def read_feed():
     """{id: row} from the jsonl feed. The last row for an id wins."""
     rows = {}
     try:
@@ -82,7 +75,8 @@ def load_feed():
 
 def save_feed(rows):
     body = "\n".join(json.dumps(r, sort_keys=True) for r in rows.values())
-    _atomic_write(FEED_PATH, body + ("\n" if body else ""))
+    with atomic_write(FEED_PATH) as fh:
+        fh.write(body + ("\n" if body else ""))
 
 
 def load_expired():
@@ -90,7 +84,8 @@ def load_expired():
 
 
 def save_expired(data):
-    _atomic_write(EXPIRED_PATH, json.dumps(data, indent=1, sort_keys=True))
+    with atomic_write(EXPIRED_PATH) as fh:
+        fh.write(json.dumps(data, indent=1, sort_keys=True))
 
 
 # ------------------------------------------------------------------ description harvest
@@ -400,7 +395,7 @@ def refresh(postings, filters=None, ran_at=None, no_write=False, desc_budget=DES
     ran_at = ran_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
     today = date.fromisoformat(ran_at[:10])
 
-    feed = load_feed()
+    feed = read_feed()
     expired = load_expired()
     cache = _read_json(DESC_PATH, {}) or {}
     outreach = outreach_index()
@@ -481,7 +476,8 @@ def refresh(postings, filters=None, ran_at=None, no_write=False, desc_budget=DES
                                                        -(r.get("score") or 0)))
         save_feed({r["id"]: r for r in ordered})
         save_expired(expired)
-        _atomic_write(DESC_PATH, json.dumps(cache, indent=1))
+        with atomic_write(DESC_PATH) as fh:
+            fh.write(json.dumps(cache, indent=1))
     return summary
 
 

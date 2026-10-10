@@ -3,6 +3,7 @@ HTML helpers every source uses."""
 
 from __future__ import annotations
 
+import contextlib
 import html
 import os
 import re
@@ -41,6 +42,28 @@ def load_yaml(*parts):
     path = os.path.join(ROOT, *parts)
     with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
+
+
+@contextlib.contextmanager
+def atomic_write(path):
+    """Yield a file handle for an atomic write: pid-tagged temp plus os.replace.
+
+    Every state writer uses this. The temp name carries the pid because two passes
+    can overlap (two overdue cron slots fire within the same second), and a shared
+    temp path lets one process rename the file while the other is still writing.
+    Callers still own their makedirs and their serialization -- this only owns
+    the temp dance.
+    """
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        yield fh
+    os.replace(tmp, path)
+
+
+def role_regex(opts):
+    """The engineering-title matcher from a source's `title_words`, or the default."""
+    words = tuple(opts.get("title_words") or WORKDAY_ROLE_WORDS)
+    return re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.I)
 
 
 def http_get(url, timeout=30, retries=2):
