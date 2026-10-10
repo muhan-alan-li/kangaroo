@@ -30,7 +30,8 @@ import urllib.error
 import urllib.request
 
 from ..config import ROOT
-from ..scan import net
+from ..scan import boards, net
+from ..scan.core import load_yaml
 
 # Same egress guard the scan uses: the probe hits api.ashbyhq.com, boards-api.greenhouse.io
 # and friends once per candidate slug, which is the duplicate-lookup burst that trips the
@@ -349,22 +350,10 @@ def _save_failures(failures):
 def _previous_boards():
     """{ats/slug} currently in data/config/ats_boards.yaml, or empty when unreadable."""
     try:
-        import yaml
-    except ImportError:
-        return set()
-    try:
-        with open(os.path.join(ROOT, "data", "config", "ats_boards.yaml"), encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
+        data = load_yaml("data", "config", "ats_boards.yaml")
     except (OSError, ValueError):
         return set()
-    out = set()
-    if isinstance(data, dict):
-        for key, rows in data.items():
-            if key.startswith("boards_") and isinstance(rows, list):
-                for row in rows:
-                    if isinstance(row, dict) and row.get("ats") and row.get("slug"):
-                        out.add(f"{row['ats']}/{row['slug']}")
-    return out
+    return boards.ats_slugs(data) if isinstance(data, dict) else set()
 
 
 def main(argv=None) -> int:

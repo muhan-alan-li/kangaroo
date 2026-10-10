@@ -37,30 +37,8 @@ import sys
 import time
 from concurrent import futures
 
-from ...scan import boardstate  # noqa: E402
-from ...scan.core import load_yaml  # noqa: E402
+from ...scan import boardstate, boards  # noqa: E402
 from ...scan.sources.workday import _probe_board  # noqa: E402
-
-
-def workday_boards():
-    """Every Workday board in the configured list, in file order."""
-    data = load_yaml("data", "config", "workday_boards.yaml")
-    boards = []
-    if isinstance(data, dict):
-        for key, rows in data.items():
-            if key.startswith("boards_"):
-                boards.extend(rows or [])
-    elif isinstance(data, list):
-        boards = data
-    return [b for b in boards if b.get("tenant") and b.get("site")]
-
-
-def workday_opts():
-    cfg = load_yaml("data", "config", "sources.yaml")
-    for source in cfg.get("sources") or []:
-        if source.get("id") == "ats_boards":
-            return source.get("workday") or {}
-    return {}
 
 
 def role_regex(opts):
@@ -102,8 +80,8 @@ def main(argv=None):
             "        The daily scan writes it on its next run; nothing to retry until then.\n")
         return 0
 
-    boards = workday_boards()
-    queue = boardstate.due(state, boards, force=args.force)
+    configured = boards.load_workday_boards()
+    queue = boardstate.due(state, configured, force=args.force)
     if args.limit:
         queue = queue[:args.limit]
 
@@ -122,7 +100,7 @@ def main(argv=None):
         sys.stderr.write(f"[retry] {len(queue)} board(s) due, dry run, nothing touched\n")
         return 0
 
-    opts = workday_opts()
+    opts = boards.workday_opts()
     page_size = int(opts.get("page_size") or 20)
     max_pages = int(opts.get("max_pages") or 2)
     window = int(opts.get("window_days") or 7)

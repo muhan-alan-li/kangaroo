@@ -33,30 +33,8 @@ import os
 import sys
 import time
 
-from ...scan import boardstate  # noqa: E402
-from ...scan.core import load_yaml  # noqa: E402
+from ...scan import boardstate, boards  # noqa: E402
 from ...scan.sources.workday import fetch_workday_boards  # noqa: E402
-
-
-def workday_boards():
-    """Every Workday board in the configured list, in file order."""
-    data = load_yaml("data", "config", "workday_boards.yaml")
-    boards = []
-    if isinstance(data, dict):
-        for key, rows in data.items():
-            if key.startswith("boards_"):
-                boards.extend(rows or [])
-    elif isinstance(data, list):
-        boards = data
-    return [b for b in boards if b.get("tenant") and b.get("site")]
-
-
-def workday_cfg():
-    cfg = load_yaml("data", "config", "sources.yaml")
-    for source in cfg.get("sources") or []:
-        if source.get("id") == "ats_boards":
-            return source
-    return {}
 
 
 def main(argv=None):
@@ -69,15 +47,14 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true", help="machine-readable result")
     args = ap.parse_args(argv)
 
-    cfg = workday_cfg()
-    opts = dict(cfg.get("workday") or {})
+    opts = dict(boards.workday_opts())
     if args.workers:
         opts["workers"] = args.workers
 
-    all_boards = workday_boards()
+    all_boards = boards.load_workday_boards()
     partial = bool(args.limit) and len(all_boards) > args.limit
-    boards = all_boards[:args.limit] if args.limit else all_boards
-    if not boards:
+    batch = all_boards[:args.limit] if args.limit else all_boards
+    if not batch:
         sys.stderr.write("[workday] no boards configured; nothing to sweep\n")
         return 1
 
@@ -94,12 +71,12 @@ def main(argv=None):
     if prev_postings is None:
         cursors = {}
 
-    sys.stderr.write(f"[workday] sweeping {len(boards)} boards "
+    sys.stderr.write(f"[workday] sweeping {len(batch)} boards "
                      f"({opts.get('workers')} workers, {opts.get('max_pages')} page(s) each, "
                      f"{len(cursors)} with a usable cursor)\n")
     boardstate.begin_run()
     started = time.perf_counter()
-    postings = fetch_workday_boards(boards, {"workday": opts}, cursors=cursors)
+    postings = fetch_workday_boards(batch, {"workday": opts}, cursors=cursors)
     wall = time.perf_counter() - started
     recorded = boardstate.end_run()
 
@@ -132,8 +109,8 @@ def main(argv=None):
         return 2
 
     if not args.dry_run:
-        boardstate.finish_run(recorded, boards=len(boards), write=True)
-        meta = {"boards": len(boards), "outcomes": len(recorded),
+        boardstate.finish_run(recorded, boards=len(batch), write=True)
+        meta = {"boards": len(batch), "outcomes": len(recorded),
                 "productive": len(productive), "quiet": len(quiet), "failed": len(failed),
                 "page_two_skipped": len(skipped), "carried_over": len(reused),
                 "wall_seconds": round(wall, 1), "verdict": reason}
@@ -143,7 +120,7 @@ def main(argv=None):
             # Workday coverage to the boards it happened to look at -- silently, because the
             # cache would still look fresh. Health is still recorded for the boards it did
             # check; the cache is not touched.
-            print(f"  partial sweep ({len(boards)} of {len(all_boards)} boards): "
+            print(f"  partial sweep ({len(batch)} of {len(all_boards)} boards): "
                   f"health recorded, cache left as it was")
         else:
             boardstate.write_sweep(postings, meta=meta)
@@ -152,7 +129,7 @@ def main(argv=None):
     if args.json:
         import json as _json
         print(_json.dumps({
-            "boards": len(boards), "postings": len(postings), "wall_seconds": round(wall, 1),
+            "boards": len(batch), "postings": len(postings), "wall_seconds": round(wall, 1),
             "productive_boards": len(productive), "quiet_boards": len(quiet),
             "failed_boards": len(failed), "page_two_skipped": len(skipped),
             "postings_carried_over": len(reused), "dry_run": bool(args.dry_run),
@@ -161,7 +138,7 @@ def main(argv=None):
         }, indent=2))
         return 0
 
-    print(f"workday sweep: {len(boards)} boards in {wall:.1f}s -> {len(postings)} postings")
+    print(f"workday sweep: {len(batch)} boards in {wall:.1f}s -> {len(postings)} postings")
     print(f"  answered with postings: {len(productive)}")
     print(f"  answered, nothing in window: {len(quiet)}")
     print(f"  did not answer: {len(failed)}")

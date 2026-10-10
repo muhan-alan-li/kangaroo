@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)  # the workspace root, so the `server` package resolves
 
 from server.jobs.retry import retry as retry_workday  # noqa: E402
-from server.scan import boardstate  # noqa: E402
+from server.scan import boardstate, boards  # noqa: E402
 from server.scan.sources import workday  # noqa: E402
 
 failures = []
@@ -61,7 +61,7 @@ boardstate.record(state, "acme|wd1|ext", "acme", False, 0, "URLError: timed out"
                   now=stamp(days=-2))
 
 real_load, real_save = boardstate.load, boardstate.save
-real_boards, real_opts = retry_workday.workday_boards, retry_workday.workday_opts
+real_boards, real_opts = boards.load_workday_boards, boards.workday_opts
 real_probe = retry_workday._probe_board
 saved = {}
 
@@ -78,15 +78,15 @@ def fake_save(boards, path=None, extra=None):
 
 boardstate.load = fake_load
 boardstate.save = fake_save
-retry_workday.workday_boards = lambda: [BOARD]  # noqa: E731
-retry_workday.workday_opts = lambda: {}  # noqa: E731
+boards.load_workday_boards = lambda: [BOARD]  # noqa: E731
+boards.workday_opts = lambda: {}  # noqa: E731
 retry_workday._probe_board = lambda *a, **k: ([{"id": "x"}], True, 0, None, {})  # noqa: E731
 try:
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         rc = retry_workday.main(["--force"])
 finally:
     boardstate.load, boardstate.save = real_load, real_save
-    retry_workday.workday_boards, retry_workday.workday_opts = real_boards, real_opts
+    boards.load_workday_boards, boards.workday_opts = real_boards, real_opts
     retry_workday._probe_board = real_probe
 
 check("a pass over one recovered board exits 0", rc, 0)
@@ -113,8 +113,8 @@ def fake_save2(boards, path=None, extra=None):
 
 
 boardstate.load, boardstate.save = fake_load2, fake_save2
-retry_workday.workday_boards = lambda: [BOARD]  # noqa: E731
-retry_workday.workday_opts = lambda: {}  # noqa: E731
+boards.load_workday_boards = lambda: [BOARD]  # noqa: E731
+boards.workday_opts = lambda: {}  # noqa: E731
 retry_workday._probe_board = (  # noqa: E731
     lambda *a, **k: ([], False, 0, "HTTP Error 422: Unprocessable Entity", {}))
 try:
@@ -122,7 +122,7 @@ try:
         rc2 = retry_workday.main(["--force"])
 finally:
     boardstate.load, boardstate.save = real_load, real_save
-    retry_workday.workday_boards, retry_workday.workday_opts = real_boards, real_opts
+    boards.load_workday_boards, boards.workday_opts = real_boards, real_opts
     retry_workday._probe_board = real_probe
 
 check("a pass over a still-dead board exits 0", rc2, 0)
