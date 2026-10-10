@@ -40,11 +40,13 @@ what the files are, how a day runs, and the rules that always apply.
                                      HTTP service (app routes, store reads data/state/, briefs launches a
                                      generation, net binds, serve loops). scan/ is the scan engine
                                      (engine.py plus core, parsing, filters, ledger, posting, pipeline,
-                                     boardstate, portal, keywords, harvest, and sources/ with one module
-                                     per feed). brief/ is the on-demand research engine (generate,
+                                     boardstate, portal, keywords, harvest, boards and endpoints, and
+                                     sources/ with one module per feed). brief/ is the on-demand research engine (generate,
                                      research, llm, and the Node fetch helper). jobs/ holds the
-                                     scheduled and maintenance commands (sweep, retry, prune, refresh,
-                                     mark-reported, probe-ats, harvest, table, feed). config.py holds
+                                     scheduled and maintenance commands: scan/ owns the scan job's
+                                     scripts (sweep, mark-reported), retry/ the retry job's (retry,
+                                     prune); the rest are hand-run utilities (refresh, probe-ats,
+                                     harvest, table, feed, bump, resume-text). config.py holds
                                      the shared paths and constants; tests/ holds the four smoke tests.
                                      Adding a source means a module in scan/sources/, a row in
                                      SOURCE_FUNCS, a block in data/config/sources.yaml, and a row in

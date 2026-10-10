@@ -43,7 +43,8 @@ def harvest_boards(collected, write=True):
     return len(boards)
 
 
-# The kinds server/jobs/probe_ats.py can actually read; mirrors its BOARD_URL. A harvested board of
+# The kinds the probe can actually read; mirrors the keys of BOARD_URL in
+# server/scan/endpoints.py. A harvested board of
 # any other kind is out of the probe's reach, so reporting it would be noise.
 PROBE_KINDS = ("greenhouse", "ashby", "lever", "workable")
 
