@@ -7,8 +7,8 @@ Why this exists as its own file rather than the dashboard reading `last_scan.jso
   not. The portal is a working list, so it accumulates: a row stays until it expires.
 - The candidate's rule, 2026-10-04: a scanned posting is **discarded after 7 days**, and the
   only thing kept past that is its identity, so the same posting cannot come back as new.
-  Expiry here is that rule; the identity half lives in `state/seen.jsonl` (the scan's dedupe
-  ledger) and in `state/portal_expired.json`, and neither is ever pruned.
+  Expiry here is that rule; the identity half lives in `data/state/seen.jsonl` (the scan's dedupe
+  ledger) and in `data/state/portal_expired.json`, and neither is ever pruned.
 - The dashboard must not fetch anything (it is read-only and serves a request in
   milliseconds), so the enrichment -- posting text, resume keywords, outreach addresses --
   happens here, at scan time, and is cached.
@@ -31,7 +31,7 @@ from .core import ROOT, UA, http_get, strip_tags
 from .keywords import _profile_skills, extract_emails, extract_keywords
 from .posting import apply_signature
 
-STATE = os.path.join(ROOT, "state")
+STATE = os.path.join(ROOT, "data", "state")
 FEED_PATH = os.path.join(STATE, "portal_feed.jsonl")
 EXPIRED_PATH = os.path.join(STATE, "portal_expired.json")
 DESC_PATH = os.path.join(STATE, "descriptions.json")

@@ -12,13 +12,13 @@ set -eu
 
 # Share the scan's lock: never two Workday passes at once. A skipped run is not a
 # failure -- the due boards stay due, and the next weekly slot picks them up.
-exec 9>/work/state/.scan.lock
+exec 9>/work/data/state/.scan.lock
 if ! flock -n 9; then
   echo "retry-entrypoint: a scan is running; skipping this slot" >&2
   exit 0
 fi
 
-LOG=/work/state/retry.log
+LOG=/work/data/state/retry.log
 if [ -f "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 2000000 ]; then
   mv -f "$LOG" "$LOG.1"
 fi

@@ -11,7 +11,7 @@
 # entrypoint needs (tzdata, so `date -Is` logs in America/Vancouver like the old
 # wrapper did), and the scan's Python dependencies. Code (server/), config and
 # the candidate profile are bind-mounted read-only at run time, so editing them
-# needs no rebuild; state/ is mounted read-write, so the ledger, the portal feed
+# needs no rebuild; data/state/ is mounted read-write, so the ledger, the portal feed
 # and the logs land on the host where the dashboard reads them. Rebuild only when
 # THIS file changes:
 #
@@ -20,7 +20,7 @@ FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 TZ=America/Vancouver
 
-# tzdata: the entrypoint stamps state/scan.log with `date -Is`, and the old
+# tzdata: the entrypoint stamps data/state/scan.log with `date -Is`, and the old
 # wrapper logged local time; without this the container logs UTC instead.
 # pyyaml: the scanner's one hard dependency (config + candidate profile).
 # curl_cffi: the iCIMS fetcher's browser impersonation (server/scan/icims_fetch.py).

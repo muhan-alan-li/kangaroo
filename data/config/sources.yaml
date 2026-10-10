@@ -81,17 +81,17 @@ sources:
     #
     #     python3 -m server probe-ats
     #
-    # config/workday_boards.yaml is the second board list. Workday is about 46% of the
+    # data/config/workday_boards.yaml is the second board list. Workday is about 46% of the
     # Simplify feed and needs a tenant + wd number + career site per employer rather than
     # a single slug, so it lives in its own file. The scan reads the first page of each
     # board only: the board API is date-sorted newest first and carries a real publish
     # field, so paging past the window would cost hundreds of thousands of requests a day
     # to reach postings that are months old.
     companies_files:
-      - config/ats_boards.yaml
-      - config/workday_boards.yaml
-      - config/json_boards.yaml
-      - config/icims_boards.yaml
+      - data/config/ats_boards.yaml
+      - data/config/workday_boards.yaml
+      - data/config/json_boards.yaml
+      - data/config/icims_boards.yaml
     # The uniform JSON set: Workable, SmartRecruiters, Rippling, BambooHR, Recruitee,
     # Breezy and Teamtailor. Seven vendors that all take a slug in a URL template and answer
     # with JSON, over five hundred boards between them, so they run as one parallel batch.
@@ -177,11 +177,11 @@ sources:
       workers: 16
       timeout: 25
       # server/jobs/sweep_workday.py sweeps this fleet on its own beat and leaves the postings in
-      # state/workday_sweep.json. The daily scan reads that file when it is younger than
+      # data/state/workday_sweep.json. The daily scan reads that file when it is younger than
       # max_cache_age_hours and skips the sweep entirely; when the file is missing or older,
       # the scan sweeps Workday itself, so an unscheduled separate pass costs time and never
       # coverage. 30h covers a once-a-day sweep plus a missed night.
-      cache: state/workday_sweep.json
+      cache: data/state/workday_sweep.json
       max_cache_age_hours: 30
       # The cursor: a board whose keyword page one is identical to the last read that reached
       # its page two does not fetch page two again, which halves the requests on an unchanged
@@ -232,7 +232,7 @@ sources:
     # posting the ats source also finds is reported once.
     #
     # Every posting carries the board slug behind it, and the scan harvests those slugs
-    # into state/sg_boards.json. server/jobs/probe_ats.py reads that file, so a company seen here
+    # into data/state/sg_boards.json. server/jobs/probe_ats.py reads that file, so a company seen here
     # once gets its whole board probed later, instead of only the one posting that
     # surfaced. The feed is mostly United States startups; the location tiers decide what
     # survives.
@@ -258,7 +258,7 @@ sources:
     # page type, so the source sweeps the paths below. Measured 2026-10-04: 285 distinct
     # jobs, 66 engineering-titled. Never add a `?page=` path -- it repeats page one.
     #
-    # Two limits, both deliberate and both recorded in config/source_candidates.md:
+    # Two limits, both deliberate and both recorded in data/config/source_candidates.md:
     #   * No publish date exists anywhere on the site (not in the list payload, not on the
     #     job page), so every posting is tagged `date_missing` -- the same treatment Rippling
     #     and BambooHR get. The sweep is served newest-first, which is not the same thing as

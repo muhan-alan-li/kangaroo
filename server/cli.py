@@ -18,7 +18,7 @@ means the pile of top-level scripts goes away and there is a single, discoverabl
     python3 -m server table [--per-tier 3] # render the shortlist to a PNG
     python3 -m server feed [--days 7]      # print the Simplify feed
     python3 -m server bump --bump          # bump the client cache-buster
-    python3 -m server resume-text          # regenerate candidate/resume-text.md
+    python3 -m server resume-text          # regenerate data/candidate/resume-text.md
 
 Subcommands are registered in `COMMANDS` below and imported lazily, so starting the server
 never pays for the scanner's dependencies.

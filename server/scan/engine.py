@@ -1,6 +1,6 @@
 """Command-line entry point. It reports and never acts: it never marks a posting reported
 (mark_reported.py does that) and never submits anything. The no-agent scan job logs its
-stdout to state/scan.log."""
+stdout to data/state/scan.log."""
 
 from __future__ import annotations
 
@@ -45,18 +45,18 @@ def main(argv=None):
     # so it needs neither.
     lock_fh = None
     if not args.stats and not os.environ.get("JOB_SCAN_LOCK_HELD"):
-        os.makedirs(os.path.join(ROOT, "state"), exist_ok=True)
-        lock_fh = open(os.path.join(ROOT, "state", ".scan.lock"), "a")
+        os.makedirs(os.path.join(ROOT, "data", "state"), exist_ok=True)
+        lock_fh = open(os.path.join(ROOT, "data", "state", ".scan.lock"), "a")
         try:
             fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             lock_fh.close()
-            sys.stderr.write("[scan] another scan holds state/.scan.lock; not starting a "
+            sys.stderr.write("[scan] another scan holds data/state/.scan.lock; not starting a "
                              "second one\n")
             return 1
 
-    filters = load_yaml("config", "filters.yaml")
-    sources_cfg = load_yaml("config", "sources.yaml")
+    filters = load_yaml("data", "config", "filters.yaml")
+    sources_cfg = load_yaml("data", "config", "sources.yaml")
 
     ledger = load_ledger()
     if args.stats:
@@ -187,7 +187,7 @@ def main(argv=None):
                    "source_seconds": {k: round(v, 2) for k, v in per_source_secs.items()},
                    "matched": kept,
                    "tier_counts": tier_counts(kept, filters), "dropped": dropped}
-        last_scan = os.path.join(ROOT, "state", "last_scan.json")
+        last_scan = os.path.join(ROOT, "data", "state", "last_scan.json")
         tmp = f"{last_scan}.{os.getpid()}.tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
@@ -245,7 +245,7 @@ def main(argv=None):
         return 0
 
     # One table per run, with the columns sized to the widest cell so it stays readable in a
-    # terminal and in state/scan.log without a fixed layout to maintain by hand.
+    # terminal and in data/state/scan.log without a fixed layout to maintain by hand.
     #
     # The url and the id get a second table rather than columns in the first. They are the two
     # fields nothing else can substitute for -- mark_reported.py keys on the id and the portal

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove dead boards from config/workday_boards.yaml.
+"""Remove dead boards from data/config/workday_boards.yaml.
 
 The user's rule, 2026-10-07: a board that keeps failing is just noise, so remove it. "Keep
 failing" cannot mean "any failure", because Workday throttles by IP and a bad afternoon makes
@@ -14,11 +14,11 @@ career-site name in the tenant/wd/site triple is wrong. Those have already lost 
 change that. Transient failures (429/403/timeouts) are left alone; the weekly `job-retry`
 keeps working them.
 
-Both `config/workday_boards.yaml` and the board's row in `state/board_health.json` are pruned,
+Both `data/config/workday_boards.yaml` and the board's row in `data/state/board_health.json` are pruned,
 so the removed board stops counting as "failing" on the dashboard and never enters the retry
 queue again. The config is rewritten in place; prior board configs are not archived.
 
-Removed keys are also appended to `config/workday_tombstones.yaml`, which
+Removed keys are also appended to `data/config/workday_tombstones.yaml`, which
 `server/jobs/harvest/workday.py` consults when it rebuilds the board file: the dead triples
 came from feed URLs, so without the tombstones the next harvest would re-add them.
 Delete a tombstone line by hand to let a board back in.
@@ -39,8 +39,8 @@ from ..config import ROOT
 
 from ..scan import boardstate  # noqa: E402
 
-CONFIG = os.path.join(ROOT, "config", "workday_boards.yaml")
-HEALTH = os.path.join(ROOT, "state", "board_health.json")
+CONFIG = os.path.join(ROOT, "data", "config", "workday_boards.yaml")
+HEALTH = os.path.join(ROOT, "data", "state", "board_health.json")
 
 
 def _field(line, name):

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Rebuild config/icims_boards.yaml from the iCIMS links in the Simplify feed.
+"""Rebuild data/config/icims_boards.yaml from the iCIMS links in the Simplify feed.
 
 iCIMS needs a host, not a slug -- every customer gets their own subdomain
 ("careers-ice.icims.com", "career-schwab.icims.com") and the board lives at that host's
 /jobs/search. The hosts are harvested from the feed so that every entry is a company that
 has already posted a new-grad role.
 
-    python3 -m server harvest icims              # rewrite config/icims_boards.yaml
+    python3 -m server harvest icims              # rewrite data/config/icims_boards.yaml
     python3 -m server harvest icims --report     # counts only, write nothing
 """
 import argparse
@@ -18,7 +18,7 @@ import sys
 from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
-OUT = os.path.join(ROOT, "config", "icims_boards.yaml")
+OUT = os.path.join(ROOT, "data", "config", "icims_boards.yaml")
 HOST = re.compile(r"https?://([a-z0-9-]+\.icims\.com)/jobs/", re.I)
 
 HEADER = """# iCIMS job boards, harvested from the Simplify feed.
@@ -35,7 +35,7 @@ HEADER = """# iCIMS job boards, harvested from the Simplify feed.
 #     uv pip install --python .venv-icims/bin/python curl_cffi
 #
 # The search view carries no date, so the fetcher reads each candidate's job detail page for
-# the schema.org `datePosted`. See config/source_candidates.md for the evidence.
+# the schema.org `datePosted`. See data/config/source_candidates.md for the evidence.
 """
 
 

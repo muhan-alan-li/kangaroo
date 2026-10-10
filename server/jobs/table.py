@@ -8,7 +8,7 @@ monospace code block only stays aligned until the width forces a horizontal scro
     /usr/bin/python3 -m server table                    # latest scan, top 3 per tier
     /usr/bin/python3 -m server table --per-tier 5 --out /tmp/shortlist.png
 
-Reads state/last_scan.json, so it renders what the scan actually reported: no network, no
+Reads data/state/last_scan.json, so it renders what the scan actually reported: no network, no
 filters re-run, no ledger touched, and no text invented here.
 """
 from __future__ import annotations
@@ -91,7 +91,7 @@ def load_rows(path, per_tier, limit):
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
 
-    filters_path = os.path.join(ROOT, "config", "filters.yaml")
+    filters_path = os.path.join(ROOT, "data", "config", "filters.yaml")
     tiers = []
     try:
         import yaml
@@ -197,7 +197,7 @@ def render(data, rows, out):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--from", dest="src", default=os.path.join(ROOT, "state", "last_scan.json"))
+    ap.add_argument("--from", dest="src", default=os.path.join(ROOT, "data", "state", "last_scan.json"))
     ap.add_argument("--per-tier", type=int, default=3)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--out", default="/tmp/scan-shortlist.png")

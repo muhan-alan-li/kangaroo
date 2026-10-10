@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Rebuild config/json_boards.yaml from the vendor links in the Simplify feed.
+"""Rebuild data/config/json_boards.yaml from the vendor links in the Simplify feed.
 
 Seven vendors share one shape -- a slug in a URL template that answers with JSON -- so they
 live in one board file and one fetcher. Every slug here is harvested from a link in the
 Simplify new-grad feed, which means each one is a company that has already posted a new-grad
 role; none is guessed.
 
-    python3 -m server harvest jsonboards              # rewrite config/json_boards.yaml
+    python3 -m server harvest jsonboards              # rewrite data/config/json_boards.yaml
     python3 -m server harvest jsonboards --report     # counts only, write nothing
 
 The vendors and why each is worth a slot:
@@ -32,7 +32,7 @@ import sys
 from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
-OUT = os.path.join(ROOT, "config", "json_boards.yaml")
+OUT = os.path.join(ROOT, "data", "config", "json_boards.yaml")
 
 # vendor -> (regex capturing the slug, human name)
 VENDORS = {

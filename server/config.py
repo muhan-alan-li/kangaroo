@@ -1,6 +1,6 @@
-"""Paths, constants, and the two settings the server reads from config/.
+"""Paths, constants, and the two settings the server reads from data/config/.
 
-Everything lives under the workspace root: state files under `state/`, config under `config/`,
+Everything lives under the workspace root: state files under `data/state/`, config under `data/config/`,
 the client under `client/`, and the brief generator under `bin/`. Keeping the paths here means
 a module can be imported and tested without pulling in the HTTP handler.
 """
@@ -10,14 +10,14 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(ROOT, "client")
-SCAN = os.path.join(ROOT, "state", "last_scan.json")
-FEED = os.path.join(ROOT, "state", "portal_feed.jsonl")
-EXPIRED = os.path.join(ROOT, "state", "portal_expired.json")
-HEALTH = os.path.join(ROOT, "state", "board_health.json")
-SWEEP = os.path.join(ROOT, "state", "workday_sweep.json")
-FILTERS = os.path.join(ROOT, "config", "filters.yaml")
-DESC = os.path.join(ROOT, "state", "descriptions.json")
-BRIEFS = os.path.join(ROOT, "state", "briefs")
+SCAN = os.path.join(ROOT, "data", "state", "last_scan.json")
+FEED = os.path.join(ROOT, "data", "state", "portal_feed.jsonl")
+EXPIRED = os.path.join(ROOT, "data", "state", "portal_expired.json")
+HEALTH = os.path.join(ROOT, "data", "state", "board_health.json")
+SWEEP = os.path.join(ROOT, "data", "state", "workday_sweep.json")
+FILTERS = os.path.join(ROOT, "data", "config", "filters.yaml")
+DESC = os.path.join(ROOT, "data", "state", "descriptions.json")
+BRIEFS = os.path.join(ROOT, "data", "state", "briefs")
 BRIEF_SCRIPT = os.path.join(ROOT, "server", "brief", "generate.py")
 PYTHON = "/usr/bin/python3"
 BRIEF_STALE_AFTER = 900        # a .running marker older than this is a crashed run
@@ -57,7 +57,7 @@ def tier_order():
 
 
 def window_days():
-    """The freshness window the scan and the portal both use, from config/filters.yaml."""
+    """The freshness window the scan and the portal both use, from data/config/filters.yaml."""
     try:
         import yaml
         with open(FILTERS, encoding="utf-8") as fh:

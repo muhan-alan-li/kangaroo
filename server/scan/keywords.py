@@ -139,13 +139,13 @@ _STOP = {"the", "and", "for", "with", "you", "our", "team", "role", "job"}
 def _profile_skills():
     """The skills the candidate's profile already claims, lowercased for matching.
 
-    Read from `candidate/candidate_profile.yaml`, which is the single source of truth for
+    Read from `data/candidate/candidate_profile.yaml`, which is the single source of truth for
     every application field. A missing or unreadable profile yields an empty set, which
     makes every keyword a `gap` -- noisy, but never wrong about what the resume says.
     """
     try:
         from .core import load_yaml
-        prof = load_yaml("candidate", "candidate_profile.yaml") or {}
+        prof = load_yaml("data", "candidate", "candidate_profile.yaml") or {}
     except Exception:  # noqa: BLE001
         return set()
     claimed = set()

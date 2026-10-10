@@ -12,7 +12,7 @@ of a rounded "1d". It does no scoring, no tiering and no ledger: it is the quick
     python3 -m server feed --grep 'new grad|graduate|junior'
     python3 -m server feed --json                # for jq
 
-The raw feed is ~13 MB, so a copy is cached in state/ for ten minutes. Pass --refresh to
+The raw feed is ~13 MB, so a copy is cached in data/state/ for ten minutes. Pass --refresh to
 force a new download.
 
 Output is one posting per line, newest first:
@@ -35,7 +35,7 @@ import urllib.request
 from ..config import ROOT
 FEED = ("https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions"
         "/dev/.github/scripts/listings.json")
-CACHE = os.path.join(ROOT, "state", "simplify_listings.json")
+CACHE = os.path.join(ROOT, "data", "state", "simplify_listings.json")
 CACHE_MINUTES = 10
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")

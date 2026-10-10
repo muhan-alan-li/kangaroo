@@ -21,7 +21,7 @@ matter. Neither engine ever sends, applies or writes a ledger.
     /usr/bin/python3 -m server brief --list                         # what is cached
     /usr/bin/python3 -m server brief <posting-id> --prompt          # print the agent prompt
 
-Writes `state/briefs/<id>.json`. A failure is written too, with the reason, so the dashboard can
+Writes `data/state/briefs/<id>.json`. A failure is written too, with the reason, so the dashboard can
 say what went wrong instead of spinning forever.
 """
 from __future__ import annotations
@@ -38,17 +38,17 @@ from datetime import datetime, timezone
 from ..config import ROOT
 from . import llm, research
 
-STATE = os.path.join(ROOT, "state")
+STATE = os.path.join(ROOT, "data", "state")
 BRIEFS = os.path.join(STATE, "briefs")
 FEED_PATH = os.path.join(STATE, "portal_feed.jsonl")
 DESC_PATH = os.path.join(STATE, "descriptions.json")
 SCAN_PATH = os.path.join(STATE, "last_scan.json")
-PROMPT_PATH = os.path.join(ROOT, "config", "brief_prompt.md")
-REVIEW_PROMPT_PATH = os.path.join(ROOT, "config", "brief_review_prompt.md")
-DIRECT_PROMPT_PATH = os.path.join(ROOT, "config", "brief_direct_system.md")
-DIRECT_REVIEW_PROMPT_PATH = os.path.join(ROOT, "config", "brief_direct_review_system.md")
-CONTACT_PROMPT_PATH = os.path.join(ROOT, "config", "contact_research_system.md")
-RESUME_PATH = os.path.join(ROOT, "candidate", "resume-text.md")
+PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_prompt.md")
+REVIEW_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_review_prompt.md")
+DIRECT_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_direct_system.md")
+DIRECT_REVIEW_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_direct_review_system.md")
+CONTACT_PROMPT_PATH = os.path.join(ROOT, "data", "config", "contact_research_system.md")
+RESUME_PATH = os.path.join(ROOT, "data", "candidate", "resume-text.md")
 SKILL_DIR = os.path.expanduser(
     "~/.hermes/skills/productivity/job-application-run")
 
@@ -252,7 +252,7 @@ def direct_messages(row, text):
     """The system + user messages for the direct DeepSeek call.
 
     The resume goes in the user turn because the model has no filesystem: the old prompt told a
-    Hermes agent to read `candidate/resume-text.md`. The posting text is bounded the same way the
+    Hermes agent to read `data/candidate/resume-text.md`. The posting text is bounded the same way the
     agent path bounds it, and the scan's keyword match is carried through so the model sees the
     same have/gap split the panel does.
     """

@@ -2,7 +2,7 @@
 """Mark postings as reported in the dedupe ledger.
 
 The no-agent scan job calls this as `--all-unreported` once `server/scan/engine.py` has written
-`state/last_scan.json` and the portal feed, so the next run's "new" set stays small. Until an
+`data/state/last_scan.json` and the portal feed, so the next run's "new" set stays small. Until an
 id is marked, scan.py keeps re-emitting it -- so a failed scan re-reports rather than silently
 dropping a posting.
 

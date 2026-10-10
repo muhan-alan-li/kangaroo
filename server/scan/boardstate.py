@@ -25,19 +25,19 @@ import re
 
 from .core import ROOT
 
-HEALTH_PATH = os.path.join(ROOT, "state", "board_health.json")
-SWEEP_PATH = os.path.join(ROOT, "state", "workday_sweep.json")
+HEALTH_PATH = os.path.join(ROOT, "data", "state", "board_health.json")
+SWEEP_PATH = os.path.join(ROOT, "data", "state", "workday_sweep.json")
 # Boards prune removed as structurally dead. Harvest rebuilds the board file from the feed,
 # and the dead triples came from feed URLs in the first place, so without this list the
 # next harvest resurrects every board prune just buried. Committed with the config so a
-# fresh clone remembers too (state/ is gitignored and would forget).
-TOMBSTONE_PATH = os.path.join(ROOT, "config", "workday_tombstones.yaml")
+# fresh clone remembers too (data/state/ is gitignored and would forget).
+TOMBSTONE_PATH = os.path.join(ROOT, "data", "config", "workday_tombstones.yaml")
 
 TOMBSTONE_HEADER = """# Workday boards removed as structurally dead, by server/jobs/prune_boards.py.
 #
 # A board lands here when it is `broken` on a structural failure (a Workday 404/422 -- a
 # wrong career-site name no retry can fix). `server/jobs/harvest/workday.py` reads this
-# list and skips these triples when it rebuilds config/workday_boards.yaml from the feed,
+# list and skips these triples when it rebuilds data/config/workday_boards.yaml from the feed,
 # because the dead triples came from feed URLs and would otherwise be re-added on the
 # next harvest. Remove a line by hand to let a board back in (e.g. the employer fixed
 # the career-site name).

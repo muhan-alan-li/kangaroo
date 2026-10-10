@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Rebuild config/workday_boards.yaml from the Workday links in the Simplify feed.
+"""Rebuild data/config/workday_boards.yaml from the Workday links in the Simplify feed.
 
 Workday needs three things per employer -- a tenant, a wd number and a career site -- not a
 single slug, so the board list cannot be hand-written the way ats_boards.yaml is. It is
 harvested instead: every Workday link in the Simplify new-grad feed is somebody who has
 already posted a new-grad role, which makes the list self-selecting.
 
-    python3 -m server harvest workday              # rewrite config/workday_boards.yaml
+    python3 -m server harvest workday              # rewrite data/config/workday_boards.yaml
     python3 -m server harvest workday --report     # print the counts, write nothing
 
 Two URL shapes appear in the feed and both are handled:
@@ -14,7 +14,7 @@ Two URL shapes appear in the feed and both are handled:
     https://{tenant}.{wd}.myworkdayjobs.com/[en-US/]{site}/job/...
     https://{wd}.myworkdaysite.com/[en-US/]recruiting/{tenant}/{site}/job/...
 
-The feed is read from state/simplify_listings.json when that copy is under a day old, so a
+The feed is read from data/state/simplify_listings.json when that copy is under a day old, so a
 run straight after a scan costs nothing.
 """
 import argparse
@@ -27,7 +27,7 @@ from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
 from ...scan import boardstate  # noqa: E402
-OUT = os.path.join(ROOT, "config", "workday_boards.yaml")
+OUT = os.path.join(ROOT, "data", "config", "workday_boards.yaml")
 
 PATTERNS = (
     re.compile(r"https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/"
@@ -108,7 +108,7 @@ def main(argv=None):
           % (origin, len(records), len(rows), covered))
     if resurrected:
         print("[harvest] skipped %d pruned board(s) still in the feed "
-              "(config/workday_tombstones.yaml)" % resurrected)
+              "(data/config/workday_tombstones.yaml)" % resurrected)
     for r in rows[:10]:
         print("   %-22s %-6s %-34s %d" % (r["tenant"], r["wd"], r["site"][:34], r["urls"]))
 

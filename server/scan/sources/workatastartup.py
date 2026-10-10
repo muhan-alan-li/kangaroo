@@ -89,7 +89,7 @@ def src_workatastartup(cfg, filters):
     source worth having beside the other startup feed: it is the whole early-stage market,
     not one board.
 
-    Two honest limits, both recorded in config/source_candidate.md:
+    Two honest limits, both recorded in data/config/source_candidate.md:
 
     - **No publish date exists anywhere on the site.** The list payload has no date field and
       neither does the job page, so every posting carries `date_missing` -- the same

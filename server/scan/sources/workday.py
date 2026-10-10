@@ -137,7 +137,7 @@ def page_signature(posts):
 
     Not just the first id and the count -- the whole ordered list. A page that reorders, or
     that swaps one posting for another, is not the same page, and treating it as unchanged is
-    how a cursor starts losing postings. The list is what gets stored in state/board_health.json
+    how a cursor starts losing postings. The list is what gets stored in data/state/board_health.json
     per board, so it is kept to the identity only.
     """
     ids = []

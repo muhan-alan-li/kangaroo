@@ -1,7 +1,7 @@
 """Board-list harvesters: `python3 -m server harvest workday|jsonboards|icims`.
 
 Each harvester reads the Simplify feed and rewrites its vendor's board config
-(`config/workday_boards.yaml`, `config/json_boards.yaml`, `config/icims_boards.yaml`).
+(`data/config/workday_boards.yaml`, `data/config/json_boards.yaml`, `data/config/icims_boards.yaml`).
 """
 from __future__ import annotations
 

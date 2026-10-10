@@ -59,7 +59,7 @@ def main(argv=None):
     mode = "API only; client/ is hosted by tailscale serve" if args.api_only else "client/ + API"
     for host, _srv in servers:
         print(f"job scan dashboard on http://{host}:{args.port}/  [{mode}]")
-    print("  reading state/ on every request", file=sys.stderr)
+    print("  reading data/state/ on every request", file=sys.stderr)
 
     threads = []
     for _host, srv in servers:

@@ -3,21 +3,21 @@
 
 The scan's `ats` source is only as good as its slug list, and a wrong slug fails
 silently (404 -> no postings, no error). This script tests a candidate list, keeps
-the boards that return real jobs, and writes them to config/ats_boards.yaml in the
+the boards that return real jobs, and writes them to data/config/ats_boards.yaml in the
 shape scan.py reads.
 
-    python3 -m server probe-ats                 # probe, rewrite config/ats_boards.yaml
+    python3 -m server probe-ats                 # probe, rewrite data/config/ats_boards.yaml
     python3 -m server probe-ats --min-jobs 1    # keep boards with at least N open roles
     python3 -m server probe-ats --report        # probe and print, do not write
 
 Exit code is 0 even when some boards fail: a dead slug is information, not an error.
 
 A board is dropped only after **two consecutive** failed probes. The first failure of a
-board that is already in config/ats_boards.yaml keeps it for one more round: a timeout
+board that is already in data/config/ats_boards.yaml keeps it for one more round: a timeout
 or a DNS blip on a bad afternoon is not the same as a dead slug, and the old behaviour
 -- rewrite from this pass's live boards only -- silently shrank the fleet on exactly
 those afternoons. A candidate that has never been live must pass to enter. The streaks
-live in state/ats_probe_failures.json.
+live in data/state/ats_probe_failures.json.
 """
 from __future__ import annotations
 
@@ -253,12 +253,12 @@ COUNT_KEYS = {"greenhouse": ("jobs",), "ashby": ("jobs",), "lever": None}
 def harvested_candidates() -> list[tuple[str, str, str]]:
     """Board slugs that a feed revealed, for the probe to test.
 
-    scan.py writes state/sg_boards.json while it reads startups.gallery, and the file
+    scan.py writes data/state/sg_boards.json while it reads startups.gallery, and the file
     accumulates: a company that surfaced once keeps its entry even after it drops out of
     the feed. Only the ATS kinds this probe can read are returned, and a company already
     in CANDIDATES is skipped so the hand-written list stays authoritative.
     """
-    path = os.path.join(ROOT, "state", "sg_boards.json")
+    path = os.path.join(ROOT, "data", "state", "sg_boards.json")
     try:
         with open(path, encoding="utf-8") as fh:
             store = json.load(fh)
@@ -307,7 +307,7 @@ HEADER = """# Public ATS job boards, verified by server/jobs/probe_ats.py.
 #     python3 -m server probe-ats
 #
 # A board already in this file survives one failed probe and is dropped on the second
-# consecutive failure (streaks in state/ats_probe_failures.json). A candidate that has
+# consecutive failure (streaks in data/state/ats_probe_failures.json). A candidate that has
 # never been live must pass to enter.
 #
 # Companies are grouped by ATS. Add new slugs to the CANDIDATES list in the probe
@@ -316,7 +316,7 @@ HEADER = """# Public ATS job boards, verified by server/jobs/probe_ats.py.
 
 
 def _failures_path():
-    return os.path.join(ROOT, "state", "ats_probe_failures.json")
+    return os.path.join(ROOT, "data", "state", "ats_probe_failures.json")
 
 
 def _load_failures():
@@ -347,13 +347,13 @@ def _save_failures(failures):
 
 
 def _previous_boards():
-    """{ats/slug} currently in config/ats_boards.yaml, or empty when unreadable."""
+    """{ats/slug} currently in data/config/ats_boards.yaml, or empty when unreadable."""
     try:
         import yaml
     except ImportError:
         return set()
     try:
-        with open(os.path.join(ROOT, "config", "ats_boards.yaml"), encoding="utf-8") as fh:
+        with open(os.path.join(ROOT, "data", "config", "ats_boards.yaml"), encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
     except (OSError, ValueError):
         return set()
@@ -428,7 +428,7 @@ def main(argv=None) -> int:
     if args.report:
         print(text[:1200])
         return 0
-    out = os.path.join(ROOT, "config", "ats_boards.yaml")
+    out = os.path.join(ROOT, "data", "config", "ats_boards.yaml")
     with open(out, "w", encoding="utf-8") as fh:
         fh.write(text)
     print(f"[probe] wrote {out} ({len(kept)} boards, {len(text)} bytes)")

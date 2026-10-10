@@ -1,5 +1,5 @@
 """The source registry. Each source lives in its own module; this one maps
-config/sources.yaml's `kind` to the function that reads it."""
+data/config/sources.yaml's `kind` to the function that reads it."""
 
 from __future__ import annotations
 

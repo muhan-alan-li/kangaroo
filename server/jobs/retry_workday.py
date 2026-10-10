@@ -44,7 +44,7 @@ from ..scan.sources.workday import _probe_board  # noqa: E402
 
 def workday_boards():
     """Every Workday board in the configured list, in file order."""
-    data = load_yaml("config", "workday_boards.yaml")
+    data = load_yaml("data", "config", "workday_boards.yaml")
     boards = []
     if isinstance(data, dict):
         for key, rows in data.items():
@@ -56,7 +56,7 @@ def workday_boards():
 
 
 def workday_opts():
-    cfg = load_yaml("config", "sources.yaml")
+    cfg = load_yaml("data", "config", "sources.yaml")
     for source in cfg.get("sources") or []:
         if source.get("id") == "ats_boards":
             return source.get("workday") or {}
@@ -98,7 +98,7 @@ def main(argv=None):
     state = boardstate.load()
     if not state:
         sys.stderr.write(
-            "[retry] no board state yet (state/board_health.json).\n"
+            "[retry] no board state yet (data/state/board_health.json).\n"
             "        The daily scan writes it on its next run; nothing to retry until then.\n")
         return 0
 

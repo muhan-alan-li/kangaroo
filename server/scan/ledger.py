@@ -12,7 +12,7 @@ from .core import ROOT
 # ----------------------------------------------------------------------- ledger
 
 def ledger_path():
-    return os.path.join(ROOT, "state", "seen.jsonl")
+    return os.path.join(ROOT, "data", "state", "seen.jsonl")
 
 
 def load_ledger():

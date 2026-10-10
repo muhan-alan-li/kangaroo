@@ -7,7 +7,7 @@ by role:
     api/      the dashboard HTTP service
               app.py     routes (GET /api/dashboard, GET /api/posting/<id>,
                          POST /api/brief/<id>, POST /api/deep-contacts/<id>)
-              store.py   reading `state/` -- feed, row, description, dashboard payload
+              store.py   reading `data/state/` -- feed, row, description, dashboard payload
               briefs.py  the brief cache and the coroutine that launches generation
               net.py     bind addresses (Tailscale address, loopback)
               serve.py   the serving loop

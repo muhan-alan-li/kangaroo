@@ -7,7 +7,7 @@ applications. Splitting it off does not make the requests cheaper; it moves them
 critical path, so the daily run spends its time on iCIMS and the JSON vendors (under a
 minute together) and reads Workday out of this pass's output file instead.
 
-What it writes, all atomic and all under state/:
+What it writes, all atomic and all under data/state/:
 
     workday_sweep.json   the sweep's postings, which server/scan/engine.py reads when fresh
     board_health.json    per-board outcome: answered, did not answer, and how long until
@@ -40,7 +40,7 @@ from ..scan.sources.workday import fetch_workday_boards  # noqa: E402
 
 def workday_boards():
     """Every Workday board in the configured list, in file order."""
-    data = load_yaml("config", "workday_boards.yaml")
+    data = load_yaml("data", "config", "workday_boards.yaml")
     boards = []
     if isinstance(data, dict):
         for key, rows in data.items():
@@ -52,7 +52,7 @@ def workday_boards():
 
 
 def workday_cfg():
-    cfg = load_yaml("config", "sources.yaml")
+    cfg = load_yaml("data", "config", "sources.yaml")
     for source in cfg.get("sources") or []:
         if source.get("id") == "ats_boards":
             return source
@@ -62,7 +62,7 @@ def workday_cfg():
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Sweep the Workday boards into the cache.")
     ap.add_argument("--workers", type=int, default=0,
-                    help="override config/sources.yaml's workday workers")
+                    help="override data/config/sources.yaml's workday workers")
     ap.add_argument("--limit", type=int, default=0, help="sweep only the first N boards")
     ap.add_argument("--dry-run", action="store_true",
                     help="sweep and report, but write no state")

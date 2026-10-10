@@ -12,12 +12,12 @@ from .core import ROOT, load_yaml
 def harvest_boards(collected, write=True):
     """Record the ATS boards that a feed revealed, for the board probe to pick up.
 
-    server/jobs/probe_ats.py reads state/sg_boards.json and treats every slug in it as a probe
+    server/jobs/probe_ats.py reads data/state/sg_boards.json and treats every slug in it as a probe
     candidate, so a company that surfaced once gets its whole board scanned later instead
     of only the posting that happened to appear. The file accumulates across runs, so a
     company that drops out of the feed keeps its entry.
     """
-    path = os.path.join(ROOT, "state", "sg_boards.json")
+    path = os.path.join(ROOT, "data", "state", "sg_boards.json")
     try:
         with open(path, encoding="utf-8") as fh:
             store = json.load(fh)
@@ -52,7 +52,7 @@ PROBE_KINDS = ("greenhouse", "ashby", "lever", "workable")
 
 
 def unprobed_boards():
-    """Harvested boards that are still absent from config/ats_boards.yaml.
+    """Harvested boards that are still absent from data/config/ats_boards.yaml.
 
     A feed that deep-links into employer boards is only half-used until the probe has run,
     and the gap is invisible from the outside: the feed still yields its own handful of
@@ -60,14 +60,14 @@ def unprobed_boards():
     1,597 roles on 2026-09-30, another 14 on 2026-10-03 -- so the scan reports it rather
     than waiting for someone to notice.
     """
-    path = os.path.join(ROOT, "state", "sg_boards.json")
+    path = os.path.join(ROOT, "data", "state", "sg_boards.json")
     try:
         with open(path, encoding="utf-8") as fh:
             store = json.load(fh)
     except (OSError, json.JSONDecodeError):
         return []
     try:
-        cfg = load_yaml("config", "ats_boards.yaml") or {}
+        cfg = load_yaml("data", "config", "ats_boards.yaml") or {}
     except Exception:
         return []
     have = set()

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Rebuild the portal feed from the last scan, without running a scan.
 
-The dashboard reads `state/portal_feed.jsonl`, which a scan writes at its end. This does the
-same job from `state/last_scan.json`, so the portal can be brought up to date (or re-enriched
+The dashboard reads `data/state/portal_feed.jsonl`, which a scan writes at its end. This does the
+same job from `data/state/last_scan.json`, so the portal can be brought up to date (or re-enriched
 after a change to the keyword vocabulary) in seconds instead of a four-minute sweep.
 
     /usr/bin/python3 -m server refresh
@@ -20,7 +20,7 @@ import sys
 from ..scan import portal  # noqa: E402
 from ..scan.core import ROOT, load_yaml  # noqa: E402
 
-SCAN = os.path.join(ROOT, "state", "last_scan.json")
+SCAN = os.path.join(ROOT, "data", "state", "last_scan.json")
 
 
 def main(argv=None):
@@ -39,7 +39,7 @@ def main(argv=None):
         return 1
 
     postings = scan.get("matched") or []
-    filters = load_yaml("config", "filters.yaml")
+    filters = load_yaml("data", "config", "filters.yaml")
     summary = portal.refresh(postings, filters=filters, ran_at=scan.get("ran_at"),
                              no_write=args.dry_run, desc_budget=args.budget)
     if args.summary:

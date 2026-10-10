@@ -42,7 +42,7 @@ import urllib.request
 # --------------------------------------------------------------------------- settings
 
 def _load_settings():
-    """`config/sources.yaml`'s `network:` block, then the environment, then defaults.
+    """`data/config/sources.yaml`'s `network:` block, then the environment, then defaults.
 
     The YAML is the documented, reviewable place to tune these; the environment variables
     exist so a shell can run one scan with different brakes without editing the file.
@@ -51,7 +51,7 @@ def _load_settings():
     try:
         import yaml
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        with open(os.path.join(root, "config", "sources.yaml"), encoding="utf-8") as fh:
+        with open(os.path.join(root, "data", "config", "sources.yaml"), encoding="utf-8") as fh:
             cfg = (yaml.safe_load(fh) or {}).get("network") or {}
     except Exception:  # noqa: BLE001 -- a missing config is not a reason to fail
         cfg = {}

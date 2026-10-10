@@ -14,7 +14,7 @@ import urllib.request
 from ..config import ROOT
 FEED = ("https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions"
         "/dev/.github/scripts/listings.json")
-CACHE = os.path.join(ROOT, "state", "simplify_listings.json")
+CACHE = os.path.join(ROOT, "data", "state", "simplify_listings.json")
 CACHE_HOURS = 24
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")

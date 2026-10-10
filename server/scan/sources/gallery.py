@@ -20,7 +20,7 @@ def src_startups_gallery(cfg, filters):
     the ledger absorbs the repeats.
 
     Each card also names the board it came from, and every posting carries that slug in
-    `board_slug`. main() harvests those into state/sg_boards.json, which server/jobs/probe_ats.py
+    `board_slug`. main() harvests those into data/state/sg_boards.json, which server/jobs/probe_ats.py
     reads: a company seen here once then gets its whole board probed, instead of only the
     one posting that surfaced today.
 

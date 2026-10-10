@@ -8,8 +8,8 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=/home/muhan-li/job-hunt
 # One full pass: sweep-if-stale, `server scan --per-tier 5`, mark-reported.
-# Everything lands in state/ (scan.log, last_scan.json, portal feed, ledger),
-# where the dashboard reads it. The container's lock on state/.scan.lock
+# Everything lands in data/state/ (scan.log, last_scan.json, portal feed, ledger),
+# where the dashboard reads it. The container's lock on data/state/.scan.lock
 # excludes manual host runs, so triggering this by hand is safe:
 #   systemctl --user start job-scan.service
 ExecStart=/usr/bin/docker compose -f /home/muhan-li/job-hunt/docker/compose.yaml run --rm scan

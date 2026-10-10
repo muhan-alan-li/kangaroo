@@ -4,7 +4,7 @@
 # steps (sweep-if-stale, scan, mark-reported), same lock, same log.
 #
 # It runs INSIDE the container, where /work is the workspace root assembled
-# from the compose mounts (server/, config/, candidate/ read-only; state/
+# from the compose mounts (server/, data/config/, data/candidate/ read-only; data/state/
 # read-write). The only deliberate difference from the old wrapper is DNS: the
 # compose file points the container at public resolvers instead of Pi-hole, so
 # this run's few thousand lookups never touch the home network's rate limit.
@@ -13,7 +13,7 @@ set -eu
 # Serialise with every other scan -- a manual host run, a retry pass, another
 # slot. flock on the bind-mounted state dir locks the same file server/scan/engine.py
 # takes on a host-side manual run, so container and host runs exclude each other.
-exec 9>/work/state/.scan.lock
+exec 9>/work/data/state/.scan.lock
 if ! flock -n 9; then
   echo "scan-entrypoint: another scan holds the lock; skipping this slot" >&2
   exit 0
@@ -24,7 +24,7 @@ fi
 # it is the same process tree. This says "the lock is already held for you".
 export JOB_SCAN_LOCK_HELD=1
 
-LOG=/work/state/scan.log
+LOG=/work/data/state/scan.log
 # Keep the log bounded. It exists for the morning a run looks wrong; nobody reads a year of it.
 if [ -f "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 2000000 ]; then
   mv -f "$LOG" "$LOG.1"
@@ -34,7 +34,7 @@ fi
 # written by `server sweep`, so without this the scan sweeps the whole fleet inline
 # on every run. Sweep only when the cache is stale (26h, inside the scan's own 30h
 # window); a failed sweep is not fatal, because the scan falls back to sweeping inline.
-SWEEP=/work/state/workday_sweep.json
+SWEEP=/work/data/state/workday_sweep.json
 if [ ! -f "$SWEEP" ] || [ -n "$(find "$SWEEP" -mmin +1560 2>/dev/null)" ]; then
   echo "[scan-entrypoint] workday cache is stale; sweeping before the scan" >&2
   python3 -m server sweep >>"$LOG" 2>&1 \

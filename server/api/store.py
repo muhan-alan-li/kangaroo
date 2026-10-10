@@ -1,7 +1,7 @@
 """Reading the scan's state for the API.
 
 The server never fetches anything and never makes a network call: it reads files the scan
-wrote under `state/`, on every request, so the page is current the moment a scan finishes.
+wrote under `data/state/`, on every request, so the page is current the moment a scan finishes.
 """
 from __future__ import annotations
 
