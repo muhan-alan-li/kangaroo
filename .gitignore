@@ -19,8 +19,5 @@ candidate/
 # is personal (outreach.jsonl holds contacts).
 state/
 
-# Outreach policy: holds the candidate's real sending and reply-to addresses.
-config/policy.yaml
-
 # Any PDF here is a personal document (resume, transcript).
 *.pdf

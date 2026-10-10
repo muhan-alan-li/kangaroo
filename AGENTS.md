@@ -14,8 +14,7 @@ what the files are, how a day runs, and the rules that always apply.
                                      (the PDFs and tailored variants), candidate/documents/ (uploads: transcript and
                                      similar), and outreach-voice/ + outreach-samples/ (voice evidence).
     config/                          filters.yaml (matches, tiers, comp floor), sources.yaml, ats_boards.yaml,
-                                     workday_boards.yaml, json_boards.yaml, policy.yaml (autonomy, caps,
-                                     outreach and sending rules), source_candidates.md (the register of
+                                     workday_boards.yaml, json_boards.yaml, source_candidates.md (the register of
                                      every source considered).
     docker/                          The container image and its two entry points: Dockerfile
                                      (python:3.13-slim plus tzdata, pyyaml, curl_cffi, pillow),
@@ -294,7 +293,7 @@ does no scoring, no tiering and no ledger. Use it to check the feed by eye witho
 - US and out-of-town applications use the confirmed `answers_bank` values: US work authorization Yes, TN-eligible,
   no sponsorship needed; willing to relocate Yes. Use `located_in_listed_city_other` outside Metro Vancouver.
 - **Outreach is COMPLETE as of 2026-10-04.** The candidate's instruction: "i've completed outreach and any drafts will remain
-  unsent". `policy.yaml` has `outreach.enabled: false`. Nothing is drafted, queued or sent, no pending draft is reported, and no
+  unsent". Nothing is drafted, queued or sent, no pending draft is reported, and no
   follow-up is written unless he asks for that specific message. The 28 `sent` records stay as history.
 - Outreach is email only. Send cold email only to an address the posting or the employer's own board publishes, or
   to a named individual whose address appears verbatim in a public source and that the agent verified. Never guess
