@@ -23,6 +23,13 @@ import urllib.error
 import urllib.request
 
 from ..config import ROOT
+from ..scan import net
+
+# Same egress guard the scan uses: the probe hits api.ashbyhq.com, boards-api.greenhouse.io
+# and friends once per candidate slug, which is the duplicate-lookup burst that trips the
+# resolver's rate limit.
+net.install()
+
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/120.0 Safari/537.36")
 

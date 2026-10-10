@@ -117,6 +117,14 @@ def main(argv=None):
         sys.stderr.write("[scan] source time: %.1fs of work in %.1fs wall (%s)\n"
                          % (sum(per_source_secs.values()), phase_secs, detail))
 
+    # What the egress guard did. Worth a line every run: a lookups-vs-cached ratio that
+    # stops showing reuse, or a resolver pause, is the early sign the network is in trouble
+    # again, and it is invisible in the postings.
+    from . import net
+    net_stats = net.stats()
+    if net_stats["misses"] or net_stats["hits"]:
+        sys.stderr.write("[scan] %s\n" % net.line())
+
     harvest_boards(collected, write=not args.no_write)
 
     # A feed that hands over employer boards is only half-used until the probe has run, and

@@ -6,6 +6,27 @@
 # LinkedIn is scanned read-only through its public guest search, which needs no
 # account; applying there stays manual.
 
+# The egress guard every source shares (server/scan/net.py). The scan asks the local resolver
+# a few thousand questions in a burst -- the same shared ATS host once per board -- and the
+# resolver rate-limits per client: Pi-hole's default is 1000 queries in 60s, answered
+# REFUSED. Once tripped, every later lookup failed too, so a whole run lost all 1,288 Workday
+# boards and took 900s. These are the brakes that keep the questions under the limit.
+network:
+  # Simultaneous outbound requests, process-wide, however the per-source pools add up.
+  max_sockets: 32
+  # A resolved name is reused this long, so `api.smartrecruiters.com` is one query, not 300.
+  dns_cache_seconds: 300
+  # A failed or negative lookup is remembered this long, so a retry does not re-ask.
+  dns_nx_seconds: 15
+  # Cache-miss lookups per second, and the burst allowed before pacing starts. Kept well
+  # under 1000/60s so two passes back to back (a sweep and the scan it feeds) do not add up.
+  dns_per_second: 10
+  dns_burst: 20
+  # After this many consecutive temporary resolver failures, stop asking for this many
+  # seconds. Continuing to ask while blocked is what makes Pi-hole extend the block.
+  dns_breaker_failures: 12
+  dns_breaker_seconds: 60
+
 sources:
 
   - id: jobbank
@@ -101,7 +122,13 @@ sources:
       # separate companies' sites behind separate WAFs, so there is no shared per-IP bucket
       # and the pool is pure latency hiding. Re-measure with the refusal count, not the clock,
       # as the signal -- a pool that costs boards is worse than a slow one.
-      workers: 64
+      #
+      # Capped at 32, not 64, since the DNS episode of 2026-10-09. The 64 was measured without
+      # the thread-local curl session the fetcher now keeps: `cr.get` used to open and resolve
+      # anew per request, and the extra workers mostly bought connection churn. Each worker
+      # now reuses its connection and libcurl's DNS cache, so half the sockets do the same
+      # work and leave room under the resolver's per-client rate limit.
+      workers: 32
       window_days: 7
       timeout: 25
       details: true         # read detail pages for the date; false leaves every row undated

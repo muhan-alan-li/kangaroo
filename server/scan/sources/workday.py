@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 
 from .. import boardstate
-from ..core import UA, WORKDAY_ROLE_WORDS
+from ..core import UA, WORKDAY_ROLE_WORDS, is_dns_error
 from ..filters import region_signals
 from ..posting import make_posting
 
@@ -125,6 +125,10 @@ def _workday_page(board, page_size, offset, timeout, attempts=3, search_text="")
                 return json.loads(resp.read().decode("utf-8", "replace"))
         except Exception as exc:  # noqa: BLE001 -- retried, then reported by the caller
             last = exc
+            # A DNS failure is the resolver refusing, not the board misbehaving. Retrying
+            # asks the same refused question again and feeds the resolver's block.
+            if is_dns_error(exc):
+                break
     raise last
 
 

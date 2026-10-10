@@ -44,6 +44,7 @@ import html as html_mod
 import json
 import re
 import sys
+import threading
 import time
 import urllib.parse
 from concurrent import futures
@@ -115,13 +116,29 @@ def parse_page(page_html, host):
     return rows
 
 
+# One curl handle per worker thread. `cr.get` builds and tears down a session for every
+# request, so libcurl's connection pool and DNS cache never survive to the next call: the
+# same host is reconnected and re-resolved for each of a board's pages and each of its
+# detail pages. A thread-local session keeps them, which matters most for exactly the work
+# this process does -- every iCIMS host is one host fetched many times.
+_LOCAL = threading.local()
+
+
+def _session():
+    session = getattr(_LOCAL, "session", None)
+    if session is None:
+        session = cr.Session(impersonate=IMPERSONATE)
+        _LOCAL.session = session
+    return session
+
+
 def get(url, timeout, attempts=3):
     """One GET, retried. Returns the body or None."""
     for attempt in range(max(1, attempts)):
         if attempt:
             time.sleep(0.5 * attempt)
         try:
-            resp = cr.get(url, impersonate=IMPERSONATE, timeout=timeout)
+            resp = _session().get(url, timeout=timeout)
             if resp.status_code == 200:
                 return resp.text
         except Exception:  # noqa: BLE001 -- retried, then reported by the caller

@@ -12,6 +12,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import net
+from .net import is_dns_error
+
 try:
     import yaml
 except ImportError:  # pragma: no cover
@@ -26,6 +29,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 
+# Every source and every scheduled job reaches the network through this module, so this is
+# the one place the DNS cache/socket governor has to be switched on. It patches
+# `socket.getaddrinfo` and `urllib.request.urlopen` for the process; see net.py for why.
+net.install()
+
 
 # --------------------------------------------------------------------------- io
 
@@ -37,7 +45,11 @@ def load_yaml(*parts):
 
 def http_get(url, timeout=30, retries=2):
     """GET a URL, return text or None. Never raises -- one dead source must not
-    kill the whole scan."""
+    kill the whole scan.
+
+    A name-resolution failure is not retried: the resolver already refused, and asking again
+    is what makes the resolver extend the block. Fail fast and let the next host try.
+    """
     last = None
     for attempt in range(retries + 1):
         try:
@@ -50,8 +62,9 @@ def http_get(url, timeout=30, retries=2):
                 return resp.read().decode("utf-8", "replace")
         except Exception as exc:  # noqa: BLE001
             last = exc
-            if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
+            if is_dns_error(exc) or attempt >= retries:
+                break
+            time.sleep(1.5 * (attempt + 1))
     sys.stderr.write(f"[scan] fetch failed: {url} ({last})\n")
     return None
 
