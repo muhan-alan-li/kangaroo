@@ -53,9 +53,11 @@ health: ## Check the running API answers on :8788
 scan: ## Run one job scan (5 postings per tier)
 	$(PYTHON) -m server scan --per-tier 5
 
-test: ## Run the two smoke tests
+test: ## Run the four smoke tests
 	$(PYTHON) server/tests/test_boardstate.py
 	$(PYTHON) server/tests/test_dashboard.py
+	$(PYTHON) server/tests/test_net.py
+	$(PYTHON) server/tests/test_retry.py
 
 bump: ## Bump the client cache-buster after editing client/
 	$(PYTHON) bin/client_version.py --bump

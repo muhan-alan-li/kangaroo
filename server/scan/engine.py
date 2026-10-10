@@ -7,6 +7,7 @@ from __future__ import annotations
 from concurrent import futures
 from datetime import datetime, timezone
 import argparse
+import fcntl
 import json
 import os
 import sys
@@ -34,6 +35,25 @@ def main(argv=None):
     ap.add_argument("--stats", action="store_true", help="ledger summary only")
     ap.add_argument("--no-write", action="store_true", help="do not touch the ledger")
     args = ap.parse_args(argv)
+
+    # One scan at a time, from either side of the container boundary. The entrypoints hold
+    # an exclusive flock on this file around their whole run and export JOB_SCAN_LOCK_HELD
+    # to say so: flock is per open file description, so this child must not re-take the lock
+    # its own parent already holds. On the host there is no wrapper any more, so a manual
+    # run takes the lock here and exits loudly if a container slot is mid-scan -- the two
+    # never hit Workday at once. `--stats` only reads a file that is written atomically,
+    # so it needs neither.
+    lock_fh = None
+    if not args.stats and not os.environ.get("JOB_SCAN_LOCK_HELD"):
+        os.makedirs(os.path.join(ROOT, "state"), exist_ok=True)
+        lock_fh = open(os.path.join(ROOT, "state", ".scan.lock"), "a")
+        try:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            lock_fh.close()
+            sys.stderr.write("[scan] another scan holds state/.scan.lock; not starting a "
+                             "second one\n")
+            return 1
 
     filters = load_yaml("config", "filters.yaml")
     sources_cfg = load_yaml("config", "sources.yaml")
@@ -159,12 +179,19 @@ def main(argv=None):
             fresh.append(posting)
 
     if not args.no_write:
-        with open(os.path.join(ROOT, "state", "last_scan.json"), "w", encoding="utf-8") as fh:
-            json.dump({"ran_at": now, "sources": per_source,
-                       "source_seconds": {k: round(v, 2) for k, v in per_source_secs.items()},
-                       "matched": kept,
-                       "tier_counts": tier_counts(kept, filters), "dropped": dropped},
-                      fh, indent=2)
+        # pid-tagged temp + os.replace, like every other state writer here: the dashboard,
+        # `refresh`, `table` and the brief all read this file, and a crash mid-write would
+        # leave them parsing a truncated file -- which they swallow into an empty result,
+        # i.e. a quiet day the scan never had.
+        payload = {"ran_at": now, "sources": per_source,
+                   "source_seconds": {k: round(v, 2) for k, v in per_source_secs.items()},
+                   "matched": kept,
+                   "tier_counts": tier_counts(kept, filters), "dropped": dropped}
+        last_scan = os.path.join(ROOT, "state", "last_scan.json")
+        tmp = f"{last_scan}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+        os.replace(tmp, last_scan)
         save_ledger(ledger)
         # The portal feed is the dashboard's list: it accumulates postings, enriches them with
         # resume keywords and published addresses, and retires them after max_age_days. It is

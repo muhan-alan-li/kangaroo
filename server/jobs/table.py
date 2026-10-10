@@ -6,7 +6,7 @@ monospace code block only stays aligned until the width forces a horizontal scro
 140-character row does on a phone. An image arrives identical on every client.
 
     /usr/bin/python3 -m server table                    # latest scan, top 3 per tier
-    /usr/bin/python3 -m server table --per-tier 5 --out /tmp/digest.png
+    /usr/bin/python3 -m server table --per-tier 5 --out /tmp/shortlist.png
 
 Reads state/last_scan.json, so it renders what the scan actually reported: no network, no
 filters re-run, no ledger touched, and no text invented here.

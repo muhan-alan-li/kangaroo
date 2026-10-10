@@ -46,7 +46,7 @@ what the files are, how a day runs, and the rules that always apply.
                                      research, llm, and the Node fetch helper). jobs/ holds the
                                      scheduled and maintenance commands (sweep, retry, prune, refresh,
                                      mark-reported, probe-ats, harvest, table, feed). config.py holds
-                                     the shared paths and constants; tests/ holds the two smoke tests.
+                                     the shared paths and constants; tests/ holds the four smoke tests.
                                      Adding a source means a module in scan/sources/, a row in
                                      SOURCE_FUNCS, a block in config/sources.yaml, and a row in
                                      source_candidates.md. Local dev: `python3 -m server` serves
@@ -83,8 +83,10 @@ is still logged in `state/outreach.jsonl`.
    1.1.1.1/8.8.8.8 instead of Pi-hole, so the scan's burst of lookups never touches the
    home network's 1000-queries-per-60s rate limit. The unit files live in `systemd/` and
    are symlinked into `~/.config/systemd/user/`; a missed slot (sleep, off) simply waits
-   for the next one (`Persistent=false`), and `state/.scan.lock` still excludes a manual
-   host run.
+   for the next one (`Persistent=false`). The scan takes an exclusive `flock` on
+   `state/.scan.lock` itself (`server/scan/engine.py`), so a manual host run and a
+   container slot exclude each other; the entrypoint holds the same lock for its whole
+   run (sweep, scan, mark-reported) and the scan inherits it via `JOB_SCAN_LOCK_HELD`.
    Its stdout is empty on purpose — everything goes to `state/scan.log`.
    The old Hermes `job-scan` no-agent job is retired; `~/.hermes/scripts/job-scan-store.sh`
    stays on disk as the record of what the entrypoint replaced. Manual use:
@@ -110,8 +112,8 @@ The single job is paused when the user asks; resume it with `cronjob_manage`. Th
 so a run cannot score postings or draft anything: the portal shows `server/scan/engine.py`'s deterministic keyword score.
 
 **Resuming fires every missed slot at once.** A resumed job runs every slot it slept through, so several full
-scans can start within the same second. The wrapper holds an exclusive `flock` on `state/.scan.lock` for the whole
-run and the loser exits silently, and the ledger, `last_scan.json` and `state/sg_boards.json` are still written
+scans can start within the same second. The scan holds an exclusive `flock` on `state/.scan.lock` for the whole
+run and the loser exits loudly, and the ledger, `last_scan.json` and `state/sg_boards.json` are still written
 with pid-tagged temp names and an atomic swap.
 
 **The digest workflow is retired.** Nothing writes a dated digest any more, no message is
@@ -194,6 +196,8 @@ and fails loudly when it cannot import yaml.
     /usr/bin/python3 -m server probe-ats            # test ATS slugs, rewrite config/ats_boards.yaml
     /usr/bin/python3 server/tests/test_boardstate.py   # smoke: board health, backoff, retry queue, sweep cache
     /usr/bin/python3 server/tests/test_dashboard.py    # smoke: client routes, MIME types, path check
+    /usr/bin/python3 server/tests/test_net.py          # smoke: DNS cache, pacing, resolver pause, socket cap
+    /usr/bin/python3 server/tests/test_retry.py        # smoke: probe-result contract, retry unpack
     /usr/bin/python3 -m server feed --days 7 --where canada   # quick look at the Simplify feed
     /usr/bin/python3 -m server retry --dry-run     # re-check the Workday boards that did not answer
                                                      #   (the Sunday job-retry runs this script itself)

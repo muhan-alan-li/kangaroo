@@ -6,45 +6,20 @@ The no-agent scan job calls this as `--all-unreported` once `server/scan/engine.
 id is marked, scan.py keeps re-emitting it -- so a failed scan re-reports rather than silently
 dropping a posting.
 
+The ledger reader and writer are `server/scan/ledger.py`'s, not a second copy: one parser, and
+the pid-tagged temp name that keeps a bare `mark-reported` concurrent with a scan from
+renaming a half-written ledger over the scan's own save.
+
     python3 -m server mark-reported abc123 def456
     python3 -m server mark-reported --all-unreported
 """
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
 from datetime import datetime, timezone
 
-from ..config import ROOT
-LEDGER = os.path.join(ROOT, "state", "seen.jsonl")
-
-
-def load():
-    entries = {}
-    if not os.path.exists(LEDGER):
-        return entries
-    with open(LEDGER, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if rec.get("id"):
-                    entries[rec["id"]] = rec
-    return entries
-
-
-def save(entries):
-    os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
-    tmp = LEDGER + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        for rec in entries.values():
-            fh.write(json.dumps(rec, sort_keys=True) + "\n")
-    os.replace(tmp, LEDGER)
+from ..scan.ledger import load_ledger, save_ledger
 
 
 def main(argv=None):
@@ -53,7 +28,7 @@ def main(argv=None):
     ap.add_argument("--all-unreported", action="store_true")
     args = ap.parse_args(argv)
 
-    entries = load()
+    entries = load_ledger()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     if args.all_unreported:
@@ -79,7 +54,7 @@ def main(argv=None):
         rec["reported_at"] = now
         marked += 1
 
-    save(entries)
+    save_ledger(entries)
     print(f"marked {marked} posting(s) as reported")
     if missing:
         print(f"unknown ids ignored: {', '.join(missing)}", file=sys.stderr)
