@@ -11,6 +11,13 @@ shape scan.py reads.
     python3 -m server probe-ats --report        # probe and print, do not write
 
 Exit code is 0 even when some boards fail: a dead slug is information, not an error.
+
+A board is dropped only after **two consecutive** failed probes. The first failure of a
+board that is already in config/ats_boards.yaml keeps it for one more round: a timeout
+or a DNS blip on a bad afternoon is not the same as a dead slug, and the old behaviour
+-- rewrite from this pass's live boards only -- silently shrank the fleet on exactly
+those afternoons. A candidate that has never been live must pass to enter. The streaks
+live in state/ats_probe_failures.json.
 """
 from __future__ import annotations
 
@@ -293,14 +300,71 @@ def probe(entry: tuple[str, str, str], timeout: int = 20):
 HEADER = """# Public ATS job boards, verified by server/jobs/probe_ats.py.
 #
 # Every entry answered its board API with at least one open posting when it was last
-# probed. A wrong slug fails silently, so re-run the probe when a board stops
+# probed -- except entries held on a first failure (see below), which answered on the
+# pass before. A wrong slug fails silently, so re-run the probe when a board stops
 # returning postings:
 #
 #     python3 -m server probe-ats
 #
+# A board already in this file survives one failed probe and is dropped on the second
+# consecutive failure (streaks in state/ats_probe_failures.json). A candidate that has
+# never been live must pass to enter.
+#
 # Companies are grouped by ATS. Add new slugs to the CANDIDATES list in the probe
 # script, not by hand here, so the verification stays honest.
 """
+
+
+def _failures_path():
+    return os.path.join(ROOT, "state", "ats_probe_failures.json")
+
+
+def _load_failures():
+    """{board key: consecutive failures} from the last probe, or {}."""
+    try:
+        with open(_failures_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    # Written as {"updated_at": ..., "failures": {...}}; accept a flat map too.
+    rows = data.get("failures") if isinstance(data.get("failures"), dict) else data
+    return {k: int(v.get("failures") or 0) for k, v in rows.items()
+            if isinstance(v, dict) and k.count("/") == 1}
+
+
+def _save_failures(failures):
+    """Persist the streaks atomically; an empty map clears the file's contents."""
+    from datetime import datetime, timezone
+    os.makedirs(os.path.dirname(_failures_path()), exist_ok=True)
+    payload = {"updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+               "failures": {k: {"failures": n} for k, n in sorted(failures.items())}}
+    tmp = "%s.%d.tmp" % (_failures_path(), os.getpid())
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=1)
+    os.replace(tmp, _failures_path())
+
+
+def _previous_boards():
+    """{ats/slug} currently in config/ats_boards.yaml, or empty when unreadable."""
+    try:
+        import yaml
+    except ImportError:
+        return set()
+    try:
+        with open(os.path.join(ROOT, "config", "ats_boards.yaml"), encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except (OSError, ValueError):
+        return set()
+    out = set()
+    if isinstance(data, dict):
+        for key, rows in data.items():
+            if key.startswith("boards_") and isinstance(rows, list):
+                for row in rows:
+                    if isinstance(row, dict) and row.get("ats") and row.get("slug"):
+                        out.add(f"{row['ats']}/{row['slug']}")
+    return out
 
 
 def main(argv=None) -> int:
@@ -321,13 +385,36 @@ def main(argv=None) -> int:
     dead = [r for r in results if r not in live]
     live.sort(key=lambda r: (r["ats"], -r["jobs"], r["name"].lower()))
 
+    # Two strikes: a board already in the config survives its first consecutive failure.
+    # A timeout on a bad afternoon must not delete a good board, but a candidate that has
+    # never been live must pass to enter -- otherwise every dead slug gets a free round.
+    old = _load_failures()
+    previous = _previous_boards()
+    streaks, graced = {}, []
+    for r in dead:
+        key = f"{r['ats']}/{r['slug']}"
+        streaks[key] = old.get(key, 0) + 1
+        if streaks[key] == 1 and key in previous:
+            graced.append(r)
+    kept = live + graced
+    kept.sort(key=lambda r: (r["ats"], -r["jobs"], r["name"].lower()))
+
     print(f"[probe] {len(candidates)} candidates ({len(harvested)} harvested from feeds), "
           f"{len(live)} live boards, {len(dead)} dead")
     for r in dead:
-        print(f"  dead: {r['ats']:10} {r['slug']:20} status={r['status']}")
+        mark = " (held: first failure, in config)" if r in graced else ""
+        print(f"  dead: {r['ats']:10} {r['slug']:20} status={r['status']}{mark}")
+    if graced:
+        print(f"[probe] {len(graced)} board(s) held on a first failure; "
+              f"a second consecutive failure drops them")
+
+    if not args.report:
+        # Streaks for boards that recovered, or that were not probed at all, are forgotten.
+        _save_failures({k: n for k, n in streaks.items()
+                        if any(f"{r['ats']}/{r['slug']}" == k for r in dead)})
 
     by_ats: dict[str, list[dict]] = {}
-    for r in live:
+    for r in kept:
         by_ats.setdefault(r["ats"], []).append(r)
 
     lines = [HEADER]
@@ -344,7 +431,7 @@ def main(argv=None) -> int:
     out = os.path.join(ROOT, "config", "ats_boards.yaml")
     with open(out, "w", encoding="utf-8") as fh:
         fh.write(text)
-    print(f"[probe] wrote {out} ({len(live)} boards, {len(text)} bytes)")
+    print(f"[probe] wrote {out} ({len(kept)} boards, {len(text)} bytes)")
     return 0
 
 

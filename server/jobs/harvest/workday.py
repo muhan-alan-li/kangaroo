@@ -26,6 +26,7 @@ import sys
 from ..feed import load_feed  # noqa: E402
 
 from ...config import ROOT
+from ...scan import boardstate  # noqa: E402
 OUT = os.path.join(ROOT, "config", "workday_boards.yaml")
 
 PATTERNS = (
@@ -88,9 +89,26 @@ def main(argv=None):
         return 1
 
     rows = harvest(records)
+    # Prune's tombstones win over the feed: the structurally-dead triples below came from
+    # feed URLs, so rebuilding blindly would resurrect them into a fresh 30-day broken
+    # cycle. Compared case-insensitively -- the feed lowercases tenants while the keys
+    # were built from config text.
+    tombstones = boardstate.load_tombstones()
+    buried = {k.lower() for k in tombstones}
+    live_rows, resurrected = [], 0
+    for r in rows:
+        key = boardstate.key_of(r["tenant"], r["wd"], r["site"])
+        if key.lower() in buried:
+            resurrected += 1
+            continue
+        live_rows.append(r)
+    rows = live_rows
     covered = sum(r["urls"] for r in rows)
     print("[harvest] feed=%s (%d records) -> %d Workday boards, %d links"
           % (origin, len(records), len(rows), covered))
+    if resurrected:
+        print("[harvest] skipped %d pruned board(s) still in the feed "
+              "(config/workday_tombstones.yaml)" % resurrected)
     for r in rows[:10]:
         print("   %-22s %-6s %-34s %d" % (r["tenant"], r["wd"], r["site"][:34], r["urls"]))
 

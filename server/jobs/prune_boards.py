@@ -18,6 +18,11 @@ Both `config/workday_boards.yaml` and the board's row in `state/board_health.jso
 so the removed board stops counting as "failing" on the dashboard and never enters the retry
 queue again. The config is rewritten in place; prior board configs are not archived.
 
+Removed keys are also appended to `config/workday_tombstones.yaml`, which
+`server/jobs/harvest/workday.py` consults when it rebuilds the board file: the dead triples
+came from feed URLs, so without the tombstones the next harvest would re-add them.
+Delete a tombstone line by hand to let a board back in.
+
     /usr/bin/python3 -m server prune --dry-run   # what would go, and why
     /usr/bin/python3 -m server prune             # structural-broken boards
     /usr/bin/python3 -m server prune --key dell|wd1|External   # one, by hand
@@ -43,19 +48,18 @@ def _field(line, name):
     return match.group(1) if match else None
 
 
-def _norm(value):
-    # PyYAML parses an unquoted `001` as the integer 1, so the health key for the `fil` board is
-    # `fil|wd3|1` while the config text says `001`. Normalise the same way the parser would.
-    return str(int(value)) if value and value.isdigit() else value
-
-
 def key_of_line(line):
-    """The `tenant|wd|site` key an entry line carries, or None for a non-entry line."""
+    """The `tenant|wd|site` key an entry line carries, or None for a non-entry line.
+
+    Normalisation is `boardstate.key_of`'s, so the key built from config text always
+    matches the key the parser (and the health row) uses -- e.g. unquoted `001` parses
+    as the integer 1.
+    """
     if not line.lstrip().startswith("-"):
         return None
     tenant, wd, site = _field(line, "tenant"), _field(line, "wd"), _field(line, "site")
     if tenant and wd and site:
-        return f"{_norm(tenant)}|{_norm(wd)}|{_norm(site)}"
+        return boardstate.key_of(tenant, wd, site)
     return None
 
 
@@ -124,10 +128,19 @@ def main(argv=None):
     with open(CONFIG, "w", encoding="utf-8") as fh:
         fh.write("\n".join(kept) + "\n")
 
+    # Remember what went, so the next `harvest workday` does not re-add it from the feed
+    # it originally came from. An explicit --key is remembered too: the operator asked for
+    # it to be gone, and harvest cannot tell it apart from a live board.
+    boardstate.add_tombstones({k: dead.get(k, "requested") for k in removed})
+
     # Drop the health rows too, so a removed board cannot keep reporting as "failing" on the
     # dashboard or be offered to the retry queue. board_health is written atomically, and
-    # save() stamps its own `updated_at`.
+    # save() stamps its own `updated_at`. A target missing from the config text is already
+    # gone from the fleet, so its row goes as well -- otherwise it counts as failing on the
+    # dashboard forever while the retry queue skips it.
     for key in removed:
+        health.pop(key, None)
+    for key in missing:
         health.pop(key, None)
     boardstate.save(health, extra={"boards_total": len(health)})
 
@@ -135,7 +148,7 @@ def main(argv=None):
     for key in sorted(removed):
         print(f"  - {key}  ({dead.get(key, 'requested')})")
     if missing:
-        print(f"  not found in config (health row still dropped): {', '.join(missing)}")
+        print(f"  not found in config (health row dropped): {', '.join(missing)}")
     print(f"  board_health now holds {len(health)} boards")
     return 0
 

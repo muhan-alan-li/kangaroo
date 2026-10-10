@@ -101,7 +101,11 @@ is still logged in `state/outreach.jsonl`.
    removes boards that are structurally dead (a Workday 404/422 — a wrong career-site name
    — which no retry can fix) from `config/workday_boards.yaml` and `state/board_health.json`
    (the retry service mounts `config/` read-write for exactly this; the scan keeps it
-   read-only). It never removes on a transient failure. It shares the scan's lock, so the
+   read-only). It never removes on a transient failure. Removed keys are appended to
+   `config/workday_tombstones.yaml`, which `harvest workday` consults before rewriting the
+   board file — the dead triples came from feed URLs, so without the tombstones the next
+   harvest would re-add them. Delete a tombstone line by hand to let a board back in.
+   It shares the scan's lock, so the
    two never hit Workday at once. Output is in `state/retry.log`. The old Hermes `job-retry`
    job is retired like `job-scan` above. Manual use: `docker compose -f docker/compose.yaml
    run --rm --entrypoint /usr/local/bin/retry-entrypoint retry --dry-run`.
@@ -163,6 +167,9 @@ applications are the candidate's to make by hand, like LinkedIn's.
   and SmartRecruiters is date-sorted so it stops at the window edge like Workday. They take the same three
   basic filters. Two of them — Rippling and BambooHR — publish **no date anywhere**, so their postings carry
   `age_days: None` and `date_missing: True`; report each once and never present an undated posting as fresh.
+  Every JSON-vendor board also leaves a health row in `state/board_health.json` (`vendor|slug`, two segments, so
+  it can never collide with a Workday triple), so a board that stops answering shows up on the dashboard instead
+  of being a stderr line nobody sees.
 - **A vendor's stated country beats the location text.** SmartRecruiters returns a bare ISO code, and those
   codes collide with US state abbreviations ("de" is Delaware, "CT" is Connecticut). `_row_region_ok()` uses
   the structured field when there is one. Never widen it back to text-only: that leak was 581 overseas
@@ -173,7 +180,9 @@ applications are the candidate's to make by hand, like LinkedIn's.
 - **startups.gallery hands over more than its own feed.** The page renders about 20 of the newest postings and
   deep-links each one into the employer's ATS, so the scan sees the board slug behind every card and harvests it
   into `state/sg_boards.json`. `server/jobs/probe_ats.py` reads that file, so a company seen once gets its whole board
-  scanned later. Run the probe to fold the harvested slugs into `config/ats_boards.yaml`.
+  scanned later. Run the probe to fold the harvested slugs into `config/ats_boards.yaml`. The probe drops a board
+  only after **two consecutive** failed passes (streaks in `state/ats_probe_failures.json`): a board already in the
+  config survives its first failure, so one bad network afternoon cannot silently shrink the fleet.
 - **A level-II title is gated, not excluded.** Report one only with a strong, named fit: the posting's two or three
   main requirements and the past work that meets each. Otherwise it goes to a one-line "Left out" note. Level III
   and L4 sit above level II, so they are not easier to reach. A range including level I counts as level I.

@@ -27,6 +27,24 @@ from .core import ROOT
 
 HEALTH_PATH = os.path.join(ROOT, "state", "board_health.json")
 SWEEP_PATH = os.path.join(ROOT, "state", "workday_sweep.json")
+# Boards prune removed as structurally dead. Harvest rebuilds the board file from the feed,
+# and the dead triples came from feed URLs in the first place, so without this list the
+# next harvest resurrects every board prune just buried. Committed with the config so a
+# fresh clone remembers too (state/ is gitignored and would forget).
+TOMBSTONE_PATH = os.path.join(ROOT, "config", "workday_tombstones.yaml")
+
+TOMBSTONE_HEADER = """# Workday boards removed as structurally dead, by server/jobs/prune_boards.py.
+#
+# A board lands here when it is `broken` on a structural failure (a Workday 404/422 -- a
+# wrong career-site name no retry can fix). `server/jobs/harvest/workday.py` reads this
+# list and skips these triples when it rebuilds config/workday_boards.yaml from the feed,
+# because the dead triples came from feed URLs and would otherwise be re-added on the
+# next harvest. Remove a line by hand to let a board back in (e.g. the employer fixed
+# the career-site name).
+#
+#     python3 -m server harvest workday
+#
+"""
 
 # How long to wait before looking at a failed board again, per consecutive failure. The
 # schedule is the whole policy: retry a blip tomorrow, a board that failed twice in three
@@ -54,6 +72,19 @@ def key(board):
     if isinstance(board, str):
         return board
     return f"{board.get('tenant')}|{board.get('wd')}|{board.get('site')}"
+
+
+def key_of(tenant, wd, site):
+    """The board key built from raw parts, normalised the way the YAML parser would.
+
+    PyYAML reads an unquoted `001` as the integer 1, so the config text says `001` while the
+    parsed board -- and therefore the health row -- says `1`. Anything that compares text it
+    found (a URL, a config line) against parsed identity must fold the parts the same way.
+    """
+    def norm(part):
+        part = str(part)
+        return str(int(part)) if part.isdigit() else part
+    return f"{norm(tenant)}|{norm(wd)}|{norm(site)}"
 
 
 def now_iso():
@@ -159,13 +190,19 @@ def end_run():
     return gathered
 
 
-def note(board, ok, hits=0, err=None, cursor=None):
+def note(board, ok, hits=0, err=None, cursor=None, name=None):
     """Record one board's outcome. Does nothing unless a run has begun, so a source called
-    on its own -- a probe script, a test -- cannot quietly fill the recorder."""
+    on its own -- a probe script, a test -- cannot quietly fill the recorder.
+
+    `board` may be a config dict or an already-built key string; the JSON vendors pass the
+    string (`vendor|slug`) with `name`, since their boards carry no tenant/wd/site triple.
+    """
     if not _ACTIVE:
         return
+    if name is None and isinstance(board, dict):
+        name = board.get("name")
     _RUN.append({"key": key(board),
-                 "name": (board.get("name") if isinstance(board, dict) else None),
+                 "name": name,
                  "ok": bool(ok), "hits": int(hits or 0), "err": (str(err) if err else None),
                  "cursor": cursor})
 
@@ -281,6 +318,64 @@ def summary(state):
     failing = sum(1 for r in state.values() if r.get("status") == "failing")
     broken = sum(1 for r in state.values() if r.get("status") == "broken")
     return len(state), ok, failing, broken
+
+
+def load_tombstones(path=None):
+    """{board key: {reason, pruned_at}} for every board prune removed, or {}.
+
+    A missing or unreadable file is no tombstones, not an error: harvest must keep
+    working on a checkout from before tombstones existed.
+    """
+    path = path or TOMBSTONE_PATH
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return {}
+    try:
+        import yaml
+        data = yaml.safe_load(text) or {}
+    except Exception:  # noqa: BLE001 -- PyYAML missing or a hand edit broke the file
+        data = None
+    if isinstance(data, dict):
+        rows = data.get("tombstones") or []
+        out = {}
+        for row in rows:
+            if isinstance(row, dict) and row.get("key"):
+                out[str(row["key"])] = {"reason": row.get("reason") or "structural failure",
+                                        "pruned_at": row.get("pruned_at")}
+        return out
+    # No YAML parser (or not a mapping): fall back to the key lines, which are the
+    # contract -- one `- {key: ...}` or `key: ...` per tombstone.
+    out = {}
+    for hit in re.finditer(r"key:\s*([^\s,}]+)", text):
+        out[hit.group(1)] = {"reason": "structural failure", "pruned_at": None}
+    return out
+
+
+def add_tombstones(entries, path=None, now=None):
+    """Remember freshly pruned boards. `entries` is {key: reason}; existing rows keep
+    their original pruned_at. Returns the full set."""
+    path = path or TOMBSTONE_PATH
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    known = load_tombstones(path)
+    stamp = now or now_iso()
+    for key, reason in (entries or {}).items():
+        if key in known:
+            continue
+        known[key] = {"reason": reason or "structural failure", "pruned_at": stamp}
+    lines = [TOMBSTONE_HEADER, "tombstones:"]
+    for key in sorted(known):
+        row = known[key]
+        tenant, wd, site = (key.split("|") + ["", "", ""])[:3]
+        lines.append(f"  - {{key: {key}, tenant: {tenant}, wd: {wd}, site: {site}, "
+                     f"pruned_at: {row.get('pruned_at') or stamp}, "
+                     f"reason: {json.dumps(row.get('reason') or 'structural failure')}}}")
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    os.replace(tmp, path)
+    return known
 
 
 def line(state):

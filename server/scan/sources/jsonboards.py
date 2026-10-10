@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .. import boardstate
 from ..core import WORKDAY_ROLE_WORDS, http_get
 from ..parsing import parse_age_days
 from ..posting import apply_signature, make_posting
@@ -311,12 +312,21 @@ def fetch_json_boards(boards, cfg):
                                max_pages): b for b in boards}
         for future in futures.as_completed(pending):
             board = pending[future]
+            err = None
             try:
                 rows, ok, skipped, no_date = future.result()
-            except Exception:  # noqa: BLE001 -- a dead board must not kill the scan
+            except Exception as exc:  # noqa: BLE001 -- a dead board must not kill the scan
                 rows, ok, skipped, no_date = [], False, 0, 0
+                err = f"{type(exc).__name__}: {exc}"
             filtered += skipped
             undated += no_date
+            # The 513 JSON-vendor boards get the same health row the Workday fleet has, so a
+            # board that stops answering shows up on the dashboard instead of being a stderr
+            # line nobody sees. The key is the posting's own `vendor|slug`, two segments, so
+            # it can never collide with a Workday `tenant|wd|site` row; retry and prune look
+            # keys up in their own config lists and simply skip these.
+            boardstate.note(f"{board['ats']}|{board['slug']}", ok,
+                            hits=len(rows), err=err, name=board.get("name"))
             if not ok:
                 dead += 1
                 continue
