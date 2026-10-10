@@ -30,11 +30,11 @@ import sys
 # name -> (module, attribute). Imported on first use.
 COMMANDS = {
     "scan": ("server.scan.engine", "main"),
-    "sweep": ("server.jobs.sweep_workday", "main"),
-    "retry": ("server.jobs.retry_workday", "main"),
-    "prune": ("server.jobs.prune_boards", "main"),
+    "sweep": ("server.jobs.scan.sweep", "main"),
+    "retry": ("server.jobs.retry.retry", "main"),
+    "prune": ("server.jobs.retry.prune", "main"),
     "refresh": ("server.jobs.refresh_portal", "main"),
-    "mark-reported": ("server.jobs.mark_reported", "main"),
+    "mark-reported": ("server.jobs.scan.mark_reported", "main"),
     "harvest": ("server.jobs.harvest", "main"),
     "probe-ats": ("server.jobs.probe_ats", "main"),
     "brief": ("server.brief.generate", "main"),

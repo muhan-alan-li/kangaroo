@@ -176,7 +176,7 @@ sources:
       # across several runs, never from a single sample.
       workers: 16
       timeout: 25
-      # server/jobs/sweep_workday.py sweeps this fleet on its own beat and leaves the postings in
+      # server/jobs/scan/sweep.py sweeps this fleet on its own beat and leaves the postings in
       # data/state/workday_sweep.json. The daily scan reads that file when it is younger than
       # max_cache_age_hours and skips the sweep entirely; when the file is missing or older,
       # the scan sweeps Workday itself, so an unscheduled separate pass costs time and never

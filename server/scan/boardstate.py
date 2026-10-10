@@ -6,9 +6,9 @@ Three readers, one file:
 - the daily scan records every Workday board's outcome as it fetches, and reports one line
   of it. Nothing is written while the sources are running -- the recorder is memory only,
   and `finish_run` persists it afterwards, which is the same rule `harvest_boards` follows.
-- `server/jobs/retry_workday.py` reads the file to pick the boards worth another look, and writes back
+- `server/jobs/retry/retry.py` reads the file to pick the boards worth another look, and writes back
   what it learned.
-- `server/jobs/sweep_workday.py` reads the last sweep to skip a board whose first page has not moved
+- `server/jobs/scan/sweep.py` reads the last sweep to skip a board whose first page has not moved
   since, and to serve the daily scan from its own output.
 
 A board that answers nothing is not the same as a board that answers with nothing. The first
@@ -33,7 +33,7 @@ SWEEP_PATH = os.path.join(ROOT, "data", "state", "workday_sweep.json")
 # fresh clone remembers too (data/state/ is gitignored and would forget).
 TOMBSTONE_PATH = os.path.join(ROOT, "data", "config", "workday_tombstones.yaml")
 
-TOMBSTONE_HEADER = """# Workday boards removed as structurally dead, by server/jobs/prune_boards.py.
+TOMBSTONE_HEADER = """# Workday boards removed as structurally dead, by server/jobs/retry/prune.py.
 #
 # A board lands here when it is `broken` on a structural failure (a Workday 404/422 -- a
 # wrong career-site name no retry can fix). `server/jobs/harvest/workday.py` reads this

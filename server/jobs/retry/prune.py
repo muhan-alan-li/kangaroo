@@ -3,7 +3,7 @@
 
 The user's rule, 2026-10-07: a board that keeps failing is just noise, so remove it. "Keep
 failing" cannot mean "any failure", because Workday throttles by IP and a bad afternoon makes
-every board fail at once -- `server/jobs/retry_workday.py` proved exactly that on the day this was written
+every board fail at once -- `server/jobs/retry/retry.py` proved exactly that on the day this was written
 (59 of 59 boards failed, 100%, on a targeted probe). Removing on that signal would delete the
 whole fleet.
 
@@ -35,9 +35,9 @@ import os
 import re
 import sys
 
-from ..config import ROOT
+from ...config import ROOT
 
-from ..scan import boardstate  # noqa: E402
+from ...scan import boardstate  # noqa: E402
 
 CONFIG = os.path.join(ROOT, "data", "config", "workday_boards.yaml")
 HEALTH = os.path.join(ROOT, "data", "state", "board_health.json")

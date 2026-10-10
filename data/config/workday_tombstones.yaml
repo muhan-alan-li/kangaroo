@@ -1,4 +1,4 @@
-# Workday boards removed as structurally dead, by server/jobs/prune_boards.py.
+# Workday boards removed as structurally dead, by server/jobs/retry/prune.py.
 #
 # A board lands here when it is `broken` on a structural failure (a Workday 404/422 -- a
 # wrong career-site name no retry can fix). `server/jobs/harvest/workday.py` reads this

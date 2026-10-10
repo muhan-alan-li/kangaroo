@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assertions for the weekly retry pass: the probe-result contract and the unpack.
 
-server/jobs/retry_workday.py unpacks what server/scan/sources/workday.py:_probe_board
+server/jobs/retry/retry.py unpacks what server/scan/sources/workday.py:_probe_board
 returns. Those two disagreed once -- four names for five values -- so every due board
 raised ValueError inside the worker, was caught one line later, and was recorded as a
 failed probe with a bogus error. Nothing was due for weeks, so no run ever showed it.
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)  # the workspace root, so the `server` package resolves
 
-from server.jobs import retry_workday  # noqa: E402
+from server.jobs.retry import retry as retry_workday  # noqa: E402
 from server.scan import boardstate  # noqa: E402
 from server.scan.sources import workday  # noqa: E402
 

@@ -37,9 +37,9 @@ import sys
 import time
 from concurrent import futures
 
-from ..scan import boardstate  # noqa: E402
-from ..scan.core import load_yaml  # noqa: E402
-from ..scan.sources.workday import _probe_board  # noqa: E402
+from ...scan import boardstate  # noqa: E402
+from ...scan.core import load_yaml  # noqa: E402
+from ...scan.sources.workday import _probe_board  # noqa: E402
 
 
 def workday_boards():

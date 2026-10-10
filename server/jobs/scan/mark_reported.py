@@ -19,7 +19,7 @@ import argparse
 import sys
 from datetime import datetime, timezone
 
-from ..scan.ledger import load_ledger, save_ledger
+from ...scan.ledger import load_ledger, save_ledger
 
 
 def main(argv=None):

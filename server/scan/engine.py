@@ -1,5 +1,5 @@
 """Command-line entry point. It reports and never acts: it never marks a posting reported
-(mark_reported.py does that) and never submits anything. The no-agent scan job logs its
+(scan/mark_reported.py does that) and never submits anything. The no-agent scan job logs its
 stdout to data/state/scan.log."""
 
 from __future__ import annotations

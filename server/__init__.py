@@ -16,8 +16,11 @@ by role:
               engine.py is the `scan` command.
     brief/    the on-demand research engine -- generate (the `brief` command), the
               contact-research primitives, the DeepSeek client, the Node fetch helper
-    jobs/     the scheduled and maintenance jobs behind the rest of the commands
-              (sweep, retry, prune, refresh, mark-reported, probe-ats, harvest, table, feed)
+    jobs/     the scheduled and maintenance jobs behind the rest of the commands:
+              scan/ owns the scan job's scripts (sweep, mark-reported), retry/
+              owns the retry job's (retry, prune); the rest are hand-run
+              utilities (refresh, probe-ats, harvest, table, feed, bump,
+              resume-text)
     config.py shared paths and constants
     tests/    the two smoke tests
 

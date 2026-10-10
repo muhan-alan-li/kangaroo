@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assertions for the board state machine: health, backoff, the retry queue, the sweep cache.
 
-These are the pieces the daily scan, server/jobs/retry_workday.py and server/jobs/sweep_workday.py all share, and
+These are the pieces the daily scan, server/jobs/retry/retry.py and server/jobs/scan/sweep.py all share, and
 the ones where a wrong answer is invisible -- a board that is never retried again, a cached
 posting that reads fresher than it is, a backoff that never expires.
 

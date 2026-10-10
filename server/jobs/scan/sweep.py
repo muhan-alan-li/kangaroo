@@ -33,9 +33,9 @@ import os
 import sys
 import time
 
-from ..scan import boardstate  # noqa: E402
-from ..scan.core import load_yaml  # noqa: E402
-from ..scan.sources.workday import fetch_workday_boards  # noqa: E402
+from ...scan import boardstate  # noqa: E402
+from ...scan.core import load_yaml  # noqa: E402
+from ...scan.sources.workday import fetch_workday_boards  # noqa: E402
 
 
 def workday_boards():

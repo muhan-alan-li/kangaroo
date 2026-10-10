@@ -160,7 +160,7 @@ def src_ats(cfg, filters):
     # talk to different hosts -- Workday, the JSON vendors, iCIMS -- so there is no shared
     # rate limit to trip, though both failure counts are still reported either way.
     # Workday is the slowest batch by an order of magnitude -- about two minutes of a
-    # three-minute scan, for 1,328 boards. server/jobs/sweep_workday.py sweeps that fleet on its own
+    # three-minute scan, for 1,328 boards. server/jobs/scan/sweep.py sweeps that fleet on its own
     # beat and leaves the postings in data/state/workday_sweep.json; when that file is fresh it is
     # read instead and the sweep is skipped, which drops the daily run's floor onto iCIMS.
     # A missing or stale cache falls back to sweeping here, so a night the separate pass did

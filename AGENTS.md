@@ -93,7 +93,7 @@ is still logged in `data/state/outreach.jsonl`.
    prune` after a clean run) re-checks only the Workday boards whose backoff has come up
    and records the outcome in `data/state/board_health.json`, under the same public-DNS bypass
    as the scan — it hits the same Workday hosts, so sharing Pi-hole's bucket would be the
-   same failure. After a clean retry it also runs `server/jobs/prune_boards.py`, which
+   same failure. After a clean retry it also runs `server/jobs/retry/prune.py`, which
    removes boards that are structurally dead (a Workday 404/422 — a wrong career-site name
    — which no retry can fix) from `data/config/workday_boards.yaml` and `data/state/board_health.json`
    (the retry service mounts `data/config/` read-write for exactly this; the scan keeps it
@@ -118,7 +118,7 @@ with pid-tagged temp names and an atomic swap.
 
 **The digest workflow is retired.** Nothing writes a dated digest any more, no message is
 delivered to Discord (the job's `deliver` is `local`), and the tools that supported it — `bin/scan_summary.py` and
-`bin/append_digest.py` — are gone. `server/jobs/mark_reported.py` stays because the no-agent scan job
+`bin/append_digest.py` — are gone. `server/jobs/scan/mark_reported.py` stays because the no-agent scan job
 calls it. Re-enabling an agent run is a deliberate change, not part of the daily scan.
 
 ## What the scan keeps
@@ -151,7 +151,7 @@ applications are the candidate's to make by hand, like LinkedIn's.
   filter that feed on `category` (the strings are inconsistent, so an allow-list drops roles silently) or on
   `sponsorship` beyond an explicit `Does Not Offer Sponsorship`.
 - **Workday is the largest source and lives in its own board file.** `data/config/workday_boards.yaml` holds ~1,290
-  boards (1,328 before the 2026-10-07 prune; `server/jobs/prune_boards.py` drops structurally dead entries),
+  boards (1,328 before the 2026-10-07 prune; `server/jobs/retry/prune.py` drops structurally dead entries),
   harvested from the feed by `server/jobs/harvest/workday.py` (Workday needs a tenant + wd number + career site,
   not a slug). The scan reads the **first page only** of each board, because the board API is date-sorted newest
   first and carries a real publish field — paging further would mean hundreds of thousands of requests a day for
