@@ -15,6 +15,7 @@ exercises routing and MIME types rather than importing a helper and hoping.
 import http.client
 import json
 import os
+import re
 import sys
 import threading
 from http.server import ThreadingHTTPServer
@@ -37,8 +38,14 @@ def main():
     thread.start()
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
 
-    def request(path, method="GET"):
-        conn.request(method, path)
+    def request(path, method="GET", body=None, ctype="application/json"):
+        headers = {}
+        data = None
+        if body is not None:
+            data = body.encode("utf-8") if isinstance(body, str) else body
+            headers["Content-Type"] = ctype
+            headers["Content-Length"] = str(len(data))
+        conn.request(method, path, body=data, headers=headers)
         resp = conn.getresponse()
         body = resp.read()
         return resp.status, dict((k.lower(), v) for k, v in resp.getheaders()), body
@@ -49,22 +56,38 @@ def main():
         ok("GET / is 200", status == 200, status)
         ok("GET / is HTML", "text/html" in headers.get("content-type", ""),
            headers.get("content-type"))
-        ok("GET / serves the client shell", b'id="rows"' in body and b"/js/main.js" in body)
+        ok("GET / serves the client shell", b'id="root"' in body and b"/dist/postings.js" in body,
+           body[:200])
+        ok("GET / links to the health page", b"/health.html" in body)
 
         # Every asset the module graph imports must be reachable and typed correctly, or the
-        # browser silently refuses to run it.
+        # browser silently refuses to run it. The TS/Preact bundle is built into client/dist/ by
+        # `npm run build`; the server serves it verbatim like any other asset. The entry names
+        # are fixed (the HTML references them); the shared runtime chunk carries a content hash,
+        # so the test follows the entry's import rather than pinning a build detail.
         for path, ctype in [("/styles.css", "text/css"),
-                            ("/js/main.js", "text/javascript"),
-                            ("/js/render.js", "text/javascript"),
-                            ("/js/detail.js", "text/javascript"),
-                            ("/js/table.js", "text/javascript"),
-                            ("/js/api.js", "text/javascript"),
-                            ("/js/util.js", "text/javascript"),
-                            ("/js/health.js", "text/javascript")]:
+                            ("/dist/postings.js", "text/javascript"),
+                            ("/dist/health.js", "text/javascript")]:
             status, headers, _ = request(path)
             ok(f"GET {path} is 200", status == 200, status)
             ok(f"GET {path} is {ctype}", ctype in headers.get("content-type", ""),
                headers.get("content-type"))
+
+        _, _, entry = request("/dist/postings.js")
+        chunk = re.search(rb'from"\./([^"]+\.js)"', entry)
+        ok("the postings bundle imports a shared chunk", chunk is not None)
+        if chunk:
+            path = "/dist/" + chunk.group(1).decode()
+            status, headers, _ = request(path)
+            ok(f"GET {path} is 200", status == 200, status)
+            ok(f"GET {path} is text/javascript",
+               "text/javascript" in headers.get("content-type", ""),
+               headers.get("content-type"))
+
+        for page in ("/", "/health.html"):
+            _, _, html = request(page)
+            ok(f"{page} versions its entry script",
+               re.search(rb'src="/dist/[\w.-]+\.js\?v=[\w.-]+"', html) is not None)
 
         # The health page is a separate document from the postings table (AGENTS.md). It has
         # to be served and must be the one the nav links to, or the split quietly regresses.
@@ -72,7 +95,7 @@ def main():
         ok("GET /health.html is 200", status == 200, status)
         ok("GET /health.html is HTML", "text/html" in headers.get("content-type", ""),
            headers.get("content-type"))
-        ok("GET /health.html loads health.js", b"/js/health.js" in body)
+        ok("GET /health.html loads the health bundle", b"/dist/health.js" in body)
         _, _, index_body = request("/")
         ok("the postings page links to the health page", b'/health.html' in index_body)
 
@@ -130,9 +153,52 @@ def main():
         status, _, _ = request("/api/deep-contacts/bad!id", method="POST")
         ok("deep-contacts rejects a bad id", status == 400, status)
 
+        # --- the applied list: mark, read back, remove ----------------------
+        # This is the one state a client can write, so the whole loop is exercised over HTTP.
+        # Both store paths are patched into a temp dir: a test must never touch the real list.
+        import tempfile
+        from unittest import mock
+        from server.api import triage
+        with tempfile.TemporaryDirectory(prefix="jobscan-applied-") as state_dir, \
+             mock.patch.object(triage, "APPLIED", os.path.join(state_dir, "applied.json")), \
+             mock.patch.object(triage, "LOCK", os.path.join(state_dir, "applied.lock")):
+            if postings:
+                target = postings[0]["id"]
+                status, _, body = request("/api/applied/" + target, method="POST")
+                ok("marking a known posting is 200", status == 200, status)
+                marked = json.loads(body)
+                ok("marking answers marked", marked.get("marked") is True, body[:80])
+                ok("marking answers with the applied list",
+                   any(str(a.get("id")) == str(target) for a in marked.get("applied") or []),
+                   body[:120])
+
+                _, _, body = request("/api/dashboard")
+                applied = json.loads(body).get("applied") or []
+                ok("dashboard carries the applied list",
+                   any(str(a.get("id")) == str(target) for a in applied), applied)
+
+                status, _, body = request("/api/applied/remove", method="POST",
+                                          body=json.dumps({"ids": [target]}))
+                ok("removing an applied posting is 200", status == 200, status)
+                removed = json.loads(body)
+                ok("removal reports one row", removed.get("removed") == 1, body[:80])
+                ok("removal answers with the applied list", removed.get("applied") == [], body[:80])
+                _, _, body = request("/api/dashboard")
+                ok("the applied list is empty again",
+                   not (json.loads(body).get("applied") or []), body[:80])
+            else:
+                FAILURES.append("no postings in the portal feed; cannot exercise /api/applied")
+
+            status, _, _ = request("/api/applied/deadbeefdeadbeef", method="POST")
+            ok("marking an unknown posting 404s", status == 404, status)
+            status, _, _ = request("/api/applied/bad!id", method="POST")
+            ok("marking a bad id 400s", status == 400, status)
+            status, _, _ = request("/api/applied/remove", method="POST", body="{}")
+            ok("removal without ids 400s", status == 400, status)
+
         # --- the static handler cannot escape client/ -----------------------
         for path in ("/../server/api/app.py", "/%2e%2e%2fserver/api/app.py",
-                     "/js/../../server/api/app.py"):
+                     "/dist/../../server/api/app.py"):
             status, _, _ = request(path)
             ok(f"path walk {path!r} is refused", status in (403, 404), status)
 
@@ -144,7 +210,7 @@ def main():
         api_thread.start()
         api_conn = http.client.HTTPConnection("127.0.0.1", api_server.server_address[1], timeout=30)
         try:
-            for path in ("/", "/index.html", "/styles.css", "/js/main.js"):
+            for path in ("/", "/index.html", "/styles.css", "/dist/postings.js"):
                 api_conn.request("GET", path)
                 resp = api_conn.getresponse(); resp.read()
                 ok(f"api-only: {path} 404s", resp.status == 404, resp.status)

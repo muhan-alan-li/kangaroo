@@ -14,7 +14,7 @@ API_PORT ?= 8788
 SERVICE ?= job-dashboard.service
 
 .DEFAULT_GOAL := help
-.PHONY: help serve api start stop restart status logs health scan test bump clean image scan-docker timer
+.PHONY: help serve api start stop restart status logs health scan test client bump clean image scan-docker timer
 
 help: ## List the targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -58,6 +58,9 @@ test: ## Run the four smoke tests
 	$(PYTHON) server/tests/test_dashboard.py
 	$(PYTHON) server/tests/test_net.py
 	$(PYTHON) server/tests/test_retry.py
+
+client: ## Build the client bundles (needs node; client/dist/ is committed)
+	cd client && npm run build
 
 bump: ## Bump the client cache-buster after editing client/
 	$(PYTHON) -m server bump --bump

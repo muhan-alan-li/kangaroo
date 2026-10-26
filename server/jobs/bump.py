@@ -1,28 +1,28 @@
 """Bump the cache-busting version on the dashboard's client assets.
 
-`tailscale serve` sends only `Last-Modified`, so a browser can reuse an old ES module for a few
-minutes. If a changed module imports a name the cached one does not export, the whole module
-graph fails and the page renders empty -- the table with no rows. Versioning every relative
-import and both entry points (and the stylesheet) forces a fresh fetch.
+`tailscale serve` sends only `Last-Modified`, so a browser can reuse `client/dist/postings.js`
+or `health.js` for a while after a rebuild. The bundles have fixed names, so a changed entry
+file needs a changed URL: this rewrites the `?v=` on both entry scripts and on `styles.css`.
+The Preact runtime chunk carries a content hash in its own filename, which Vite regenerates on
+every build, so it cannot be pinned to an old copy.
 
     python3 -m server bump            # print the current version
     python3 -m server bump --bump     # today's date plus a letter
     python3 -m server bump --set 20261006a
 
-Run `bump --bump` after any change to `client/js/*.js`, `client/styles.css`, or the two HTML files.
+Run `npm run build` first, then `bump --bump` after any change under `client/src/` or to
+`client/styles.css` / the two HTML files.
 """
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import re
 from datetime import date
 
 from ..config import ROOT
 CLIENT = os.path.join(ROOT, "client")
-IMPORT_RE = re.compile(r"from '\./([\w-]+)\.js(\?v=[^']*)?'")
-ENTRY_RE = re.compile(r'(src="/js/[\w-]+\.js)(\?v=[^"]*)?(")')
+ENTRY_RE = re.compile(r'(src="/dist/[\w.-]+\.js)(\?v=[^"]*)?(")')
 CSS_RE = re.compile(r'(href="/styles\.css)(\?v=[^"]*)?(")')
 
 
@@ -34,12 +34,6 @@ def current():
 
 def set_version(version):
     changed = []
-    for path in glob.glob(os.path.join(CLIENT, "js", "*.js")):
-        text = open(path, encoding="utf-8").read()
-        new = IMPORT_RE.sub(r"from './\1.js?v=" + version + "'", text)
-        if new != text:
-            open(path, "w", encoding="utf-8").write(new)
-            changed.append(path)
     for name in ("index.html", "health.html"):
         path = os.path.join(CLIENT, name)
         text = open(path, encoding="utf-8").read()
