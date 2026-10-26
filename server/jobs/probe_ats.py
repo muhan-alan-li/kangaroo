@@ -98,6 +98,9 @@ CANDIDATES: list[tuple[str, str, str]] = [
     ("Rewind", "lever", "rewind"),
     ("TealBook", "lever", "tealbook"),
     ("OSI Maritime Systems", "lever", "osimaritime"),
+    # The Pivotal/XP lineage shop (Rob Mee). New-grad "Software Engineer [New Grads
+    # Welcome]" req on Canada-remote, found by the user 2026-10-23. Live board.
+    ("Mechanical Orchard", "lever", "mechanicalorchard"),
     ("Relay Financial", "ashby", "relay"),
     ("Quandri", "ashby", "quandri"),
     ("Vendasta", "ashby", "vendasta"),
