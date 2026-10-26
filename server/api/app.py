@@ -13,6 +13,7 @@ from urllib.parse import unquote
 
 from .briefs import brief_for, start_brief, start_contacts
 from ..config import CLIENT, MIME
+from . import triage
 from .store import collect, description_for, find_row
 
 
@@ -91,6 +92,44 @@ class Handler(BaseHTTPRequestHandler):
             "has_script": state["has_script"],
         }, 200
 
+    def _body(self):
+        """The JSON body of a write request, or None. Bounded, so a bad client cannot make the
+        server allocate a request-sized buffer."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if length <= 0 or length > 1_000_000:
+            return None
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+
+    def _mark_applied(self, pid):
+        """POST /api/applied/<id>: snapshot the posting into the applied list.
+
+        The answer carries the whole applied list, so the page can repaint the two tables and
+        the counts without a second request for the 183 KB dashboard.
+        """
+        if not pid or any(c not in "0123456789abcdefABCDEF-" for c in pid):
+            self._json({"error": "bad posting id"}, 400)
+            return
+        row = find_row(pid)
+        if not row:
+            self._json({"error": f"no posting {pid}"}, 404)
+            return
+        triage.mark(row)
+        self._json({"marked": True, "applied": triage.rows()})
+
+    def _remove_applied(self, ids):
+        """POST /api/applied/remove: drop a selection, one write for the whole batch."""
+        if not isinstance(ids, list):
+            self._json({"error": 'expected {"ids": [...]}'}, 400)
+            return
+        removed = triage.remove(ids)
+        self._json({"removed": removed, "applied": triage.rows()})
+
     def do_GET(self):  # noqa: N802 -- BaseHTTPRequestHandler's spelling
         path = self.path.split("?")[0]
         if path == "/api/dashboard":
@@ -109,13 +148,21 @@ class Handler(BaseHTTPRequestHandler):
         self._static(path)
 
     def do_POST(self):  # noqa: N802
-        """Start a brief. The only route that writes anything, and it writes one file.
+        """The write routes: start a brief, or move a posting on and off the applied list.
 
-        The generation is an agent run, so this cannot happen inside the request: the POST
+        The brief generation is an agent run, so it cannot happen inside the request: the POST
         launches `server/brief/generate.py` detached and answers at once, and the page polls
-        GET /api/posting/<id> for the result.
+        GET /api/posting/<id> for the result. The applied writes are just a file, so they answer
+        with what changed.
         """
         path = self.path.split("?")[0]
+        if path == "/api/applied/remove":
+            body = self._body()
+            self._remove_applied((body or {}).get("ids") if isinstance(body, dict) else None)
+            return
+        if path.startswith("/api/applied/"):
+            self._mark_applied(unquote(path[len("/api/applied/"):]).strip())
+            return
         for prefix, starter in (("/api/brief/", start_brief),
                                 ("/api/deep-contacts/", start_contacts)):
             if not path.startswith(prefix):

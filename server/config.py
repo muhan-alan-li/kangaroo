@@ -17,6 +17,7 @@ HEALTH = os.path.join(ROOT, "data", "state", "board_health.json")
 SWEEP = os.path.join(ROOT, "data", "state", "workday_sweep.json")
 FILTERS = os.path.join(ROOT, "data", "config", "filters.yaml")
 DESC = os.path.join(ROOT, "data", "state", "descriptions.json")
+APPLIED = os.path.join(ROOT, "data", "state", "applied.json")
 BRIEFS = os.path.join(ROOT, "data", "state", "briefs")
 BRIEF_SCRIPT = os.path.join(ROOT, "server", "brief", "generate.py")
 PYTHON = "/usr/bin/python3"
@@ -43,13 +44,32 @@ MIME = {
 }
 
 
+_TIER_CACHE = {}
+
+
 def tier_order():
-    """The rank the scan uses, so the dashboard cannot disagree with the scan."""
+    """The rank the scan uses, so the dashboard cannot disagree with the scan.
+
+    Memoized on the file's mtime and size. This used to be parsed on every call, and
+    `collect()` calls it per posting through `_tier_allowed` -- 185 YAML parses per request, which
+    made every dashboard load and every applied-list write take over two seconds.
+    """
+    try:
+        st = os.stat(FILTERS)
+        key = (st.st_mtime_ns, st.st_size)
+        cached = _TIER_CACHE.get(key)
+        if cached:
+            return cached
+    except OSError:
+        key = None
     try:
         import yaml
         with open(FILTERS, encoding="utf-8") as fh:
             names = [str(t.get("name")) for t in (yaml.safe_load(fh) or {}).get("location_tiers") or []]
         if names:
+            if key:
+                _TIER_CACHE.clear()
+                _TIER_CACHE[key] = names
             return names
     except Exception:  # noqa: BLE001
         pass
