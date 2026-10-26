@@ -224,8 +224,10 @@ serves `client/` and the API together on the Tailscale address and loopback, exa
 The page itself lives in `client/`, served verbatim: plain HTML, one stylesheet, and ES-module
 JavaScript with no build step. `server/api/app.py` answers the JSON the client calls -- `GET /api/dashboard`
 (everything the page shows), `GET /api/posting/<id>` (one posting's detail), and the two routes that
-write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the brief and the first-level contact
-loop) and `POST /api/deep-contacts/<id>` (the same script with `--deep-contacts`: the Hermes agent's
+write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the three-stage tailoring chain
+( `server/brief/stages.py` -- requirements, evidence match, edits -- with `server/brief/validate.py`
+dropping a `before` that is not verbatim in the resume) plus the first-level contact loop) and
+`POST /api/deep-contacts/<id>` (the same script with `--deep-contacts`: the Hermes agent's
 second-level contact search, merged into the existing brief). The client is read-only apart from those
 two buttons. `server/tests/test_dashboard.py` pins the routes and the static path check.
 

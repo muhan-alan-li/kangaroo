@@ -5,10 +5,14 @@ On demand only. Nothing here runs during a scan: the two things it produces -- r
 advice and reach-out targets -- need reasoning about the posting, and the candidate asked for
 that to happen when a posting is opened rather than preloaded for every row in the portal.
 
-Two engines, one output. The default (`--engine deepseek`) assembles the posting text and the
-resume into prompt messages and calls DeepSeek's OpenAI-compatible endpoint directly: one call
-to write the brief, one critic call to cut it. No agent, no tools, no session -- about fifteen
-seconds. It cannot research contacts, so it returns an empty contact list and says so.
+Two engines, one output. The default (`--engine deepseek`) runs the three-stage tailoring chain
+(`server/brief/stages.py`): stage A extracts the posting's requirement contract from the posting
+text alone, stage B matches each requirement against the resume with met/transferable/missing
+verdicts and verbatim evidence, stage C writes the brief and resume edits from that matrix, and
+`server/brief/validate.py` then drops mechanically: a `before` that is not verbatim in the resume,
+and a flag for any term an edit invents that neither the resume nor the posting shows. Three
+reasoning calls per brief total, no agent, no session. The contact loop (`research_contacts`)
+runs concurrently with the chain, since neither needs what the other produces.
 
 `--engine hermes` is the older one-shot agent (`hermes -z`). It exists for the half that needs
 the web: reading the team page that owns the posting, a public profile, and public commit
@@ -31,13 +35,14 @@ import json
 import os
 import shutil
 import subprocess
-import sys
+import threading
 import time
 from datetime import datetime, timezone
 
 from ..config import ROOT
 from ..scan.core import atomic_write
-from . import llm, research
+from . import llm, research, stages, validate
+from .stages import MAX_POSTING_TEXT
 
 STATE = os.path.join(ROOT, "data", "state")
 BRIEFS = os.path.join(STATE, "briefs")
@@ -46,8 +51,6 @@ DESC_PATH = os.path.join(STATE, "descriptions.json")
 SCAN_PATH = os.path.join(STATE, "last_scan.json")
 PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_prompt.md")
 REVIEW_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_review_prompt.md")
-DIRECT_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_direct_system.md")
-DIRECT_REVIEW_PROMPT_PATH = os.path.join(ROOT, "data", "config", "brief_direct_review_system.md")
 CONTACT_PROMPT_PATH = os.path.join(ROOT, "data", "config", "contact_research_system.md")
 RESUME_PATH = os.path.join(ROOT, "data", "candidate", "resume-text.md")
 SKILL_DIR = os.path.expanduser(
@@ -57,7 +60,6 @@ DEFAULT_TIMEOUT = 420          # the agent path may read several pages; direct r
 CONTACT_ROUNDS = 8             # tool-call rounds in the contact loop before it must answer
 CONTACT_TOOL_CHARS = 6000      # cap one tool result so a long page cannot blow the context
 REVIEW_TIMEOUT = 240           # the critic only reads what it is handed; it does no research
-MAX_POSTING_TEXT = 12000       # the prompt goes on a command line; keep it bounded
 
 
 def _read_json(path, default=None):
@@ -66,14 +68,6 @@ def _read_json(path, default=None):
             return json.load(fh)
     except Exception:  # noqa: BLE001 -- absent state is a cold start
         return default
-
-
-def _read_text(path):
-    try:
-        with open(path, encoding="utf-8") as fh:
-            return fh.read()
-    except OSError:
-        return ""
 
 
 def _atomic_write(path, text):
@@ -248,43 +242,19 @@ def write_result(pid, payload):
 
 
 def direct_messages(row, text):
-    """The system + user messages for the direct DeepSeek call.
-
-    The resume goes in the user turn because the model has no filesystem: the old prompt told a
-    Hermes agent to read `data/candidate/resume-text.md`. The posting text is bounded the same way the
-    agent path bounds it, and the scan's keyword match is carried through so the model sees the
-    same have/gap split the panel does.
-    """
-    resume = _read_text(RESUME_PATH) or "(resume text is unavailable)"
-    user = (
-        "# The posting\n\n"
-        f"- company: {row.get('company')}\n"
-        f"- title: {row.get('title')}\n"
-        f"- location: {row.get('location')}\n"
-        f"- tier: {row.get('tier')} (score {row.get('score')})\n"
-        f"- url: {row.get('url')}\n\n"
-        "## Posting text\n\n```\n"
-        + (text or "(no posting text was available; say so in notes and keep the brief thin)")
-        [:MAX_POSTING_TEXT]
-        + "\n```\n\n"
-        "## The scan's keyword match\n\n"
-        f"- posting mentions: {', '.join(row.get('keywords') or []) or '(none extracted)'}\n"
-        f"- already on his resume: {', '.join(row.get('skills_have') or []) or '(none)'}\n"
-        f"- not on his resume: {', '.join(row.get('skills_gap') or []) or '(none)'}\n\n"
-        "## Muhan's resume (the only record of what he actually did)\n\n"
-        + resume
-    )
-    return [{"role": "system", "content": _read_text(DIRECT_PROMPT_PATH)},
-            {"role": "user", "content": user}]
-
-
-def review_direct(row, brief):
-    """The critic pass, direct: text in, JSON out, no research."""
-    user = ("# The brief to edit\n\n```json\n"
-            + json.dumps(brief, indent=1, ensure_ascii=False)
-            + "\n```\n")
-    return llm.chat_json([{"role": "system", "content": _read_text(DIRECT_REVIEW_PROMPT_PATH)},
-                          {"role": "user", "content": user}])
+    """The chain's prompts, printed by `--prompt` for review. Not a call path any more."""
+    resume = stages.read_prompt(RESUME_PATH) or "(resume text is unavailable)"
+    return [
+        {"role": "system", "content": stages.read_prompt(stages.STAGE_A_PROMPT),
+         "user": "# The posting\n\n"
+                 f"- title: {row.get('title')}\n- company: {row.get('company')}\n"
+                 f"- location: {row.get('location')}\n\n## Posting text\n\n```\n"
+                 + stages.cap_text(text) + "\n```"},
+        {"role": "system", "content": stages.read_prompt(stages.STAGE_B_PROMPT),
+         "user": "# Resume\n\n" + resume + "\n\n# Requirements: stage A's output goes here"},
+        {"role": "system", "content": stages.read_prompt(stages.STAGE_C_PROMPT),
+         "user": "# Resume\n\n" + resume + "\n\n# Match matrix: stage B's output goes here"},
+    ]
 
 
 # The tools the contact loop may call. They are the copied research primitives -- no agent, no
@@ -355,7 +325,7 @@ def _tool_result(name, args):
 
 
 def contact_messages(row, text):
-    system = _read_text(CONTACT_PROMPT_PATH)
+    system = stages.read_prompt(CONTACT_PROMPT_PATH)
     user = (
         "# The posting\n\n"
         f"- company: {row.get('company')}\n"
@@ -418,13 +388,19 @@ def research_contacts(row, text, timeout=DEFAULT_TIMEOUT):
 
 
 def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
-    """Generate the brief with direct DeepSeek calls: a researcher, a critic, then contacts.
+    """Generate the brief with the three-stage tailoring chain, contacts running alongside.
 
-    The first two passes are plain text-in/JSON-out with no agent and no session. Contacts are a
-    separate pass over the copied research tools (`server/brief/research.py`: keyless web search, raw-HTML
-    fetch, a local Playwright browser, GitHub commit metadata), because finding an address needs
-    the web while writing the brief does not. Only an address that appeared verbatim in a tool
-    result is kept.
+    Stage A extracts the posting's requirement contract (posting text only, resume withheld so
+    it cannot bias what the posting asks for). Stage B matches every requirement against the
+    resume: met / transferable / missing, with the evidence bullet copied verbatim. Stage C
+    writes the finished brief from that matrix. `server/brief/validate.py` then drops any edit
+    whose `before` is not verbatim in the resume, and flags a term an edit invents that neither
+    the resume nor the posting shows; validity is enforced in code, not trusted to a prompt.
+
+    Three chain calls plus, concurrently, the contact tool loop (`research_contacts`): finding an
+    address needs only the row and the posting text, never the chain's outputs, so it starts with
+    stage A and its wall time hides inside the chain's. Only an address that appeared verbatim in
+    a tool result is kept.
     """
     row = find_posting(pid)
     if not row:
@@ -439,42 +415,53 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
          "description_source": source, "engine": "deepseek"}, indent=1))
 
     started = time.monotonic()
+    resume = stages.read_prompt(RESUME_PATH) or "(resume text is unavailable)"
+
+    # Contacts do not wait for the chain. Stage C's prompt returns an empty contact list on
+    # purpose -- the model must not invent an address -- so this loop is the only path that can
+    # populate them, and it needs nothing the chain produces.
+    found = {"contacts": [], "contact_notes": "contact research failed"}
+    contact_thread = None
+    if contacts:
+        def _run_contacts():
+            try:
+                found.update(research_contacts(row, text, timeout=timeout))
+            except Exception as exc:  # noqa: BLE001
+                found["contacts"] = []
+                found["contact_notes"] = f"contact research failed: {exc}"
+        contact_thread = threading.Thread(target=_run_contacts)
+        contact_thread.start()
+
     try:
-        raw = llm.chat_json(direct_messages(row, text), timeout=timeout)
+        requirements = stages.stage_requirements(row, text)
+        matches = stages.stage_matches(row, text, requirements, resume)
+        written = stages.stage_brief(row, text, requirements, matches, resume)
+        _atomic_write(raw_path(pid), json.dumps(
+            {"stage_a": requirements, "stage_b": matches}, indent=1, ensure_ascii=False))
     except Exception as exc:  # noqa: BLE001 -- every failure is the page's to report
+        if contact_thread:
+            contact_thread.join(timeout=timeout)
         payload = {"status": "failed", "error": str(exc), "description_source": source,
-                   "elapsed_s": round(time.monotonic() - started, 1)}
+                   "stage": "tailoring chain", "elapsed_s": round(time.monotonic() - started, 1)}
         write_result(pid, payload)
         return payload
 
-    reviewed, why = None, None
-    try:
-        reviewed = review_direct(row, raw)
-    except Exception as exc:  # noqa: BLE001
-        why = str(exc)
-    if reviewed:
-        _atomic_write(raw_path(pid), json.dumps(raw, indent=1, ensure_ascii=False))
-        payload = dict(reviewed)
-        payload["reviewed"] = True
-        if not payload.get("contacts") and raw.get("contacts"):
-            payload["contacts"] = raw["contacts"]
-            payload["contacts_restored"] = True
-    else:
-        payload = dict(raw)
-        payload["reviewed"] = False
-        payload["review_error"] = why
-    if contacts:
-        # Contacts are researched after the brief, with the copied tool loop. The generator's own
-        # prompt returns an empty list on purpose -- the model must not invent an address -- so
-        # this is the only path that can populate them.
-        try:
-            found = research_contacts(row, text, timeout=timeout)
-            payload["contacts"] = found["contacts"]
-            payload["contact_notes"] = found["contact_notes"]
-            payload["contacts_source"] = "direct tools"
-        except Exception as exc:  # noqa: BLE001
-            payload["contacts"] = payload.get("contacts") or []
-            payload["contact_notes"] = f"contact research failed: {exc}"
+    # Validate before anything is shown. Edit quality stays with stage C; truth is enforced here.
+    tailoring = written.get("tailoring") if isinstance(written.get("tailoring"), dict) else {}
+    kept, dropped, flags = validate.check_rewords(tailoring.get("reword"), resume, text)
+    tailoring["reword"] = kept
+    payload = dict(written)
+    payload["tailoring"] = tailoring
+    if dropped:
+        payload["reword_dropped"] = dropped
+    if flags:
+        payload["reword_flags"] = flags
+
+    if contact_thread:
+        contact_thread.join(timeout=timeout)
+        payload["contacts"] = found["contacts"]
+        payload["contact_notes"] = found["contact_notes"]
+        payload["contacts_source"] = "direct tools"
 
     payload["status"] = "ok"
     payload["description_source"] = source
@@ -584,7 +571,7 @@ def generate_agent(pid, timeout=DEFAULT_TIMEOUT, runner=subprocess.run):
 def build_contact_agent_prompt(row, text):
     """The Hermes agent prompt for the deep contact search: the contact rules, the posting, and
     an instruction to write the result JSON to the agent path."""
-    rules = _read_text(CONTACT_PROMPT_PATH)
+    rules = stages.read_prompt(CONTACT_PROMPT_PATH)
     body = (text or "(not supplied -- fetch the url above and read it before writing)")[:MAX_POSTING_TEXT]
     return (rules
             + "\n\n## The posting\n\n"
@@ -708,9 +695,12 @@ def main(argv=None):
             return 1
         text, source = description_for(row)
         if args.engine == "deepseek":
-            print(f"# description: {source}\n# engine: deepseek\n")
-            for message in direct_messages(row, text):
-                print(f"===== {message['role']} =====\n{message['content']}\n")
+            print(f"# description: {source}\n# engine: deepseek (three-stage chain)\n")
+            names = ("stage A: requirements", "stage B: matches", "stage C: brief")
+            for name, message in zip(names, direct_messages(row, text)):
+                print(f"===== {name}: system =====\n{message['content']}\n")
+                if message.get("user"):
+                    print(f"===== {name}: user =====\n{message['user']}\n")
         else:
             print(f"# description: {source}\n# engine: hermes\n")
             print(build_prompt(row, text))
