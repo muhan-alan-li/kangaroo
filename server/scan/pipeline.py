@@ -61,7 +61,7 @@ def tier_counts(kept, filters):
 def cap_per_tier(postings, cap):
     """Keep the best `cap` postings per tier; return (kept, dropped_count).
 
-    A Bay Area board sweep can return hundreds of matches in one run, which buries
+    A US board sweep can return hundreds of matches in one run, which buries
     the Vancouver roles the search actually exists for. The cap is per tier, so a
     busy tier can never crowd out a quiet one.
     """
@@ -80,7 +80,7 @@ def sort_key(posting):
     """Tier first, then the deterministic score, then freshness.
 
     The tier is the user's own priority order (Vancouver, Canada-remote, Toronto,
-    Seattle, Bay Area, then the remote catch-alls), so a tier-1 posting always prints
+    Seattle, then the remote catch-alls), so a tier-1 posting always prints
     above a tier-3 one no matter how the scores fall.
     """
     return (posting.get("tier_rank", 99), -posting.get("score", 0),

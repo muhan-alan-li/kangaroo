@@ -1,13 +1,13 @@
 // Pure view functions: every one takes data and returns markup. No fetching, no state.
-import {esc, postedOf} from './util.js?v=20261007n';
+import {esc, postedOf} from './util.js?v=20261026a';
 
 // The canonical location buckets. The scan's `tier` already aggregates every spelling of a
-// place -- Burnaby and Richmond into vancouver, San Mateo and SF into bay_area, "USA - Remote"
+// place -- Burnaby and Richmond into vancouver, "USA - Remote"
 // and "US - Remote" into remote_us -- so this is a rename of the ranking field, not a second
 // classifier, and it needs no model call.
 const LOCATION_LABEL = {
   vancouver: 'Vancouver', remote_canada: 'Remote Canada', toronto: 'Toronto',
-  seattle: 'Seattle', bay_area: 'Bay Area', remote_us: 'Remote US',
+  seattle: 'Seattle', remote_us: 'Remote US',
   remote_unspecified: 'Remote',
 };
 

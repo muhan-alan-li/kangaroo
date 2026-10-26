@@ -1,9 +1,9 @@
 // The detail drawer. Clicking a row opens the posting: its own facts, the text the scan
 // cached, and the brief. Nothing is generated until the button is pressed, because generating
 // one is a model call (and, in the agent engine, a web research run).
-import {fetchPosting, triggerBrief, triggerContacts} from './api.js?v=20261007n';
-import {renderDetail} from './render.js?v=20261007n';
-import {esc} from './util.js?v=20261007n';
+import {fetchPosting, triggerBrief, triggerContacts} from './api.js?v=20261026a';
+import {renderDetail} from './render.js?v=20261026a';
+import {esc} from './util.js?v=20261026a';
 
 export function initDetail(ranAt){
   const drawer = document.getElementById('drawer');

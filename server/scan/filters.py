@@ -116,7 +116,7 @@ def location_matches(location, filters):
     """Return (ok, kind, tier_name).
 
     Tiers come from filters.yaml, in the user's own priority order: Metro Vancouver,
-    then Canada-remote, then Toronto, then Seattle/Bellevue, then the Bay Area, then
+    then Canada-remote, then Toronto, then Seattle/Bellevue, then
     the two remote catch-alls. A posting outside every tier is dropped.
 
     kind: local | remote_ca | remote_us | remote_unspecified

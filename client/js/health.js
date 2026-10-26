@@ -1,8 +1,8 @@
 // Entry point for the scan-health page. Same payload as the postings page; only the
 // scan/board sections are rendered here.
-import {fetchDashboard} from './api.js?v=20261007n';
-import {renderHero, renderScan, renderCost, renderHealth} from './render.js?v=20261007n';
-import {initPrefs} from './prefs.js?v=20261007n';
+import {fetchDashboard} from './api.js?v=20261026a';
+import {renderHero, renderScan, renderCost, renderHealth} from './render.js?v=20261026a';
+import {initPrefs} from './prefs.js?v=20261026a';
 
 initPrefs();
 

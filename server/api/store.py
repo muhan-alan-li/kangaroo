@@ -49,9 +49,19 @@ def find_row(pid):
     if not present:
         rows = (read_json(SCAN, {}) or {}).get("matched") or []
     for row in rows:
-        if str(row.get("id")) == str(pid):
+        if str(row.get("id")) == str(pid) and _tier_allowed(row):
             return row
     return None
+
+
+def _tier_allowed(row):
+    """A row is shown only if its tier still exists in filters.yaml's location_tiers.
+
+    Tiers get retired (bay_area, 2026-10-26); retired-tier rows left over in the
+    state files must not reach the page, so this checks the tier list itself rather
+    than hard-coding names.
+    """
+    return not row.get("tier") or row["tier"] in set(tier_order())
 
 
 def description_for(pid, row=None):
@@ -83,6 +93,7 @@ def collect():
     postings, feed_present = read_feed()
     if not feed_present:
         postings = scan.get("matched") or []
+    postings = [p for p in postings if _tier_allowed(p)]
     order = {name: i for i, name in enumerate(tier_order())}
     postings.sort(key=lambda p: (order.get(p.get("tier") or "", 99),
                                  -int(p.get("score") or 0),

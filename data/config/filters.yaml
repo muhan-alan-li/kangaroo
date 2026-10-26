@@ -203,31 +203,6 @@ location_tiers:
       - issaquah
       - woodinville
 
-  - name: bay_area
-    label: "new grad Bay Area"
-    country: usa
-    cities:
-      - san francisco
-      - south san francisco
-      - palo alto
-      - mountain view
-      - sunnyvale
-      - san jose
-      - santa clara
-      - cupertino
-      - menlo park
-      - redwood city
-      - san mateo
-      - foster city
-      - milpitas
-      - fremont
-      - oakland
-      - berkeley
-      - los altos
-      - san bruno
-      - daly city
-      - bay area
-
   - name: remote_us
     label: "remote, US only (needs US work authorization)"
     country: usa
@@ -278,7 +253,7 @@ locations:
     - kelowna
 
 # Remote postings: accepted only when they're Canada-eligible.
-# "Remote in USA" is accepted but ranked below the Bay Area and flagged, because it
+# "Remote in USA" is accepted but flagged, because it
 # needs US work authorization. Bare "Remote" is accepted, ranked last, and flagged.
 remote:
   enabled: true

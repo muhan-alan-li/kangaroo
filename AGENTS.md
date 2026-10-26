@@ -185,7 +185,7 @@ applications are the candidate's to make by hand, like LinkedIn's.
   main requirements and the past work that meets each. Otherwise it goes to a one-line "Left out" note. Level III
   and L4 sit above level II, so they are not easier to reach. A range including level I counts as level I.
 - **Location tiers set the order** in `data/config/filters.yaml: location_tiers`: vancouver, remote_canada, toronto,
-  seattle, bay_area, remote_us, remote_unspecified. No match means dropped. A US posting is kept and flagged,
+  seattle, remote_us, remote_unspecified. No match means dropped. A US posting is kept and flagged,
   because the application asks about US work authorization. `--per-tier N` caps each tier; the cron uses 5.
 
 ## Manual use

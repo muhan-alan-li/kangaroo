@@ -133,7 +133,7 @@ tbody tr.flt{display:none}
 .tag i{width:7px;height:7px;border-radius:50%;background:var(--ink4);flex:none}
 .tier-vancouver i{background:#52c41a}.tier-remote_canada i{background:#13a8a8}
 .tier-toronto i{background:#2f54eb}.tier-seattle i{background:#722ed1}
-.tier-bay_area i{background:#eb2f96}.tier-remote_us i{background:#fa8c16}
+.tier-remote_us i{background:#fa8c16}
 .tier-remote_unspecified i{background:#8c8c8c}
 
 /* Pager -------------------------------------------------------------------- */
@@ -229,7 +229,7 @@ table.data tbody tr:last-child td{border-bottom:0}
   border-radius:var(--r);overflow:hidden}
 #drawer .kv .k2{background:var(--surface-2);color:var(--ink2);padding:9px 14px;font-size:12.5px;
   border-bottom:1px solid var(--border)}
-#drawer .kv div:nth-child(even){padding:9px 14px;font-family:var(--mono);font-size:12.5px;
+#drawer .kv div:nth-child(even){padding:9px 14px;font-family:var(--tabmono);font-size:12.5px;
   border-bottom:1px solid var(--border);word-break:break-word}
 #drawer .kv .k2:nth-last-child(2),#drawer .kv div:last-child{border-bottom:0}
 .verdict{background:var(--primary-soft);border-left:3px solid var(--primary);border-radius:6px;

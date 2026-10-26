@@ -36,7 +36,6 @@ TIER = {
     "remote_canada": (89, 214, 190),
     "toronto": (88, 166, 255),
     "seattle": (155, 145, 255),
-    "bay_area": (235, 130, 235),
     "remote_us": (250, 168, 26),
     "remote_unspecified": (160, 166, 175),
 }

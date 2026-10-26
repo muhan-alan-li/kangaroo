@@ -22,7 +22,7 @@ BRIEF_SCRIPT = os.path.join(ROOT, "server", "brief", "generate.py")
 PYTHON = "/usr/bin/python3"
 BRIEF_STALE_AFTER = 900        # a .running marker older than this is a crashed run
 
-TIER_ORDER = ["vancouver", "remote_canada", "toronto", "seattle", "bay_area",
+TIER_ORDER = ["vancouver", "remote_canada", "toronto", "seattle",
               "remote_us", "remote_unspecified"]
 
 # Content types for the client directory. Anything unlisted is served as a binary blob rather

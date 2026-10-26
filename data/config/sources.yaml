@@ -219,7 +219,6 @@ sources:
       - "Vancouver, British Columbia, Canada"
       - "Toronto, Ontario, Canada"
       - "Seattle, Washington, United States"
-      - "San Francisco Bay Area"
 
   - id: startups_gallery
     enabled: true
