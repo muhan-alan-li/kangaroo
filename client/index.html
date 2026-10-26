@@ -13,7 +13,7 @@ try {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Cascadia+Mono:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/styles.css?v=20261026a">
+<link rel="stylesheet" href="/styles.css?v=20261026i">
 </head>
 <body>
 <header class="topbar">
@@ -23,52 +23,12 @@ try {
     <a href="/health.html">scan health</a>
   </nav>
   <span class="topmeta" id="topmeta"></span>
-  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark">light</button>
+  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark"
+        aria-label="toggle light or dark theme">light</button>
 </header>
 
-<main class="page">
-  <div class="card">
-    <div class="toolbar">
-      <span class="prompt" aria-hidden="true">&gt;</span>
-      <input type="search" id="q" placeholder="Filter company or title…">
-      <select id="locfilter" aria-label="location"></select>
-    </div>
+<div id="root"></div>
 
-    <div class="tablewrap">
-    <table class="shortlist"><thead><tr>
-      <th data-s="posted">Posted</th><th data-s="tier">Location</th>
-      <th data-s="company">Company</th><th data-s="title">Title</th>
-    </tr></thead><tbody id="rows"></tbody></table>
-    <div class="none" id="empty" style="display:none">No rows match</div>
-    </div>
-
-    <div class="pager" id="pager">
-      <span class="pginfo" id="pginfo"></span>
-      <span class="pgspacer"></span>
-      <label class="pgsize">rows <select id="pgsize">
-        <option value="fit">Fit</option><option value="10">10</option><option value="25">25</option><option value="50">50</option>
-      </select></label>
-      <button class="pg" id="pgprev" type="button" aria-label="previous page">&lsaquo;</button>
-      <span class="pgnum" id="pgnum"></span>
-      <button class="pg" id="pgnext" type="button" aria-label="next page">&rsaquo;</button>
-    </div>
-  </div>
-</main>
-
-<div id="scrim"></div>
-<aside id="drawer" aria-hidden="true">
-  <div class="dh">
-    <button class="x" id="dclose" title="close (Esc)">&times;</button>
-    <h3 id="dtitle">—</h3>
-    <div class="dsub" id="dsub"></div>
-    <div class="dtabs" id="dtabs">
-      <button type="button" data-tab="summary" class="on">Summary</button>
-      <button type="button" data-tab="resume">Résumé</button>
-      <button type="button" data-tab="contact">Contact</button>
-    </div>
-  </div>
-  <div id="dbody"></div>
-</aside>
-<script type="module" src="/js/main.js?v=20261026a"></script>
+<script type="module" src="/dist/postings.js?v=20261026i"></script>
 </body>
 </html>

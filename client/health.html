@@ -13,7 +13,7 @@ try {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Cascadia+Mono:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="/styles.css?v=20261026a">
+<link rel="stylesheet" href="/styles.css?v=20261026i">
 </head>
 <body>
 <header class="topbar">
@@ -23,34 +23,12 @@ try {
     <a href="/health.html" class="on">scan health</a>
   </nav>
   <span class="topmeta" id="topmeta"></span>
-  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark">light</button>
+  <button class="themebtn" id="themeToggle" type="button" title="toggle light / dark"
+        aria-label="toggle light or dark theme">light</button>
 </header>
 
-<main class="page">
-  <div class="card hero">
-    <div class="heroin" id="hero"></div>
-    <div class="statgrid" id="statgrid"></div>
-  </div>
+<div id="root"></div>
 
-  <div class="card">
-    <div class="cardhead"><h2>Boards &amp; scan</h2></div>
-    <div class="kvblock" id="scan"></div>
-    <p class="sumnote" id="failnote"></p>
-    <details class="inset">
-      <summary>Boards that didn't answer (<span id="failmeta"></span>)</summary>
-      <table class="data"><thead><tr>
-        <th>Board</th><th class="r">Fails</th><th>Kind</th><th>Last error</th><th>Next check</th>
-      </tr></thead><tbody id="failrows"></tbody></table>
-    </details>
-    <details class="inset">
-      <summary>Source cost</summary>
-      <table class="data"><thead><tr>
-        <th>Source</th><th class="r">Collected</th><th class="r">Seconds</th></tr>
-      </thead><tbody id="costrows"></tbody></table>
-    </details>
-  </div>
-</main>
-
-<script type="module" src="/js/health.js?v=20261026a"></script>
+<script type="module" src="/dist/health.js?v=20261026i"></script>
 </body>
 </html>

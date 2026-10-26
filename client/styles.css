@@ -93,6 +93,18 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 .chip b{color:var(--ink4);font:11px/1 var(--mono);margin-left:5px}
 .chip.on b{color:var(--primary)}
 
+/* Open / Applied switch. The same segmented control as above, with a live count per view. */
+.viewbar{display:flex;align-items:center;gap:12px;padding:12px 18px;
+  border-bottom:1px solid var(--border);background:var(--surface-2)}
+.seg button{appearance:none;background:transparent;border:0;border-radius:6px;color:var(--ink2);
+  font:inherit;font-size:13px;padding:5px 12px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--surface);color:var(--primary);font-weight:600;
+  box-shadow:0 1px 2px rgba(23,16,45,.12)}
+.seg button em{font:11px/1 var(--mono);font-style:normal;color:var(--ink4)}
+.seg button.on em{color:var(--primary)}
+
 /* antd-flavoured table ------------------------------------------------------ */
 .shortlist{width:100%;border-collapse:separate;border-spacing:0;font-size:14.5px;
   font-variant-numeric:tabular-nums;table-layout:fixed}
@@ -125,6 +137,23 @@ tbody tr.flt{display:none}
 /* The table always shows at most one page (10 rows). The wrapper reserves the full
    page's height so the pager below never shifts when a filter leaves fewer rows. */
 .tablewrap{min-height:580px}
+
+/* The applied section ------------------------------------------------------- */
+/* Its first column is a checkbox, so the open table's column widths do not apply. */
+.shortlist.applied thead th{cursor:default}
+.shortlist.applied th:nth-child(1),.shortlist.applied td:nth-child(1){width:46px;padding-right:0}
+.shortlist.applied th:nth-child(2),.shortlist.applied td:nth-child(2){width:128px}
+.shortlist.applied th:nth-child(3),.shortlist.applied td:nth-child(3){width:220px}
+.shortlist.applied td.title a{color:var(--ink);display:inline-block;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.appliedbar{gap:14px}
+.selall{display:inline-flex;align-items:center;gap:8px;color:var(--ink2);font-size:13px;
+  cursor:pointer;user-select:none}
+input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;margin:0;
+  cursor:pointer;vertical-align:middle}
+.applied-badge{display:inline-block;padding:1px 9px;border-radius:999px;margin-right:4px;
+  background:var(--primary-soft);border:1px solid var(--primary-line);
+  color:var(--primary);font-size:11.5px;font-weight:600}
 
 /* antd Tag for the location cell */
 .tag{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);font-size:12.5px;
@@ -225,16 +254,38 @@ table.data tbody tr:last-child td{border-bottom:0}
 #drawer p{margin:0 0 8px;font-size:13.5px}
 #drawer ul{margin:0 0 8px;padding-left:20px;font-size:13.5px}
 #drawer li{margin-bottom:6px}
-#drawer .kv{display:grid;grid-template-columns:130px 1fr;gap:0;border:1px solid var(--border);
-  border-radius:var(--r);overflow:hidden}
+#drawer .kv{display:grid;grid-template-columns:122px minmax(0,1fr);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;background:var(--surface)}
 #drawer .kv .k2{background:var(--surface-2);color:var(--ink2);padding:9px 14px;font-size:12.5px;
-  border-bottom:1px solid var(--border)}
-#drawer .kv div:nth-child(even){padding:9px 14px;font-family:var(--tabmono);font-size:12.5px;
-  border-bottom:1px solid var(--border);word-break:break-word}
-#drawer .kv .k2:nth-last-child(2),#drawer .kv div:last-child{border-bottom:0}
+  border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+#drawer .kv .v2{padding:9px 14px;font-family:var(--tabmono);font-size:12.5px;line-height:1.5;
+  border-bottom:1px solid var(--border);word-break:break-word;min-width:0}
+#drawer .kv .k2:nth-last-child(2),#drawer .kv .v2:last-child{border-bottom:0}
+.actbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r)}
+.actbar .btn{padding:6px 14px}
+.actbar .applyhint{color:var(--ink3);font-size:12px}
+.actbar .applied-badge{margin:0}
+.linkbtn{appearance:none;background:none;border:0;padding:4px 2px;color:var(--ink3);
+  font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.linkbtn:hover{color:var(--primary)}
+.briefempty{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;padding:14px;background:var(--surface-2);border:1px dashed var(--border-2);
+  border-radius:var(--r)}
+.briefempty .be-copy{flex:1;min-width:220px}
+.briefempty h4{margin-bottom:4px}
+.briefempty p{margin-bottom:0}
+.briefempty .btn{flex:none}
+.briefempty.running{align-items:center}
+.briefempty .be-note{flex:none;max-width:130px;text-align:right}
+.spinner{width:16px;height:16px;border:2px solid var(--border-2);border-top-color:var(--primary);
+  border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spinner{animation:none}}
 .verdict{background:var(--primary-soft);border-left:3px solid var(--primary);border-radius:6px;
   padding:12px 14px;font-size:13.5px;font-weight:500;margin:0}
 .tight li{margin-bottom:6px}
+.keypoints li::marker{color:var(--primary)}
 .dont .tight{color:var(--error)}
 .rw{border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;margin-bottom:10px;
   background:var(--surface)}
@@ -253,6 +304,14 @@ table.data tbody tr:last-child td{border-bottom:0}
 .btn[disabled]{opacity:.5;cursor:default}
 .btn.ghost{background:transparent;color:var(--chrome);border-color:var(--chrome)}
 .btn.ghost:hover{background:var(--chrome);color:#fff}
+/* Dark is the default, and there --chrome is near-black: a ghost button in the drawer would be
+   dark on dark. The lilac pair reads the same in both themes. */
+:root[data-theme="dark"] .btn.ghost{color:var(--primary-2);border-color:var(--primary-line)}
+:root[data-theme="dark"] .btn.ghost:hover{background:var(--primary-soft);color:var(--primary-2)}
+/* The one action the drawer exists for. Text takes the page background, so the pair contrasts
+   in both themes without a second rule. */
+.btn.apply{background:var(--primary);border-color:var(--primary);color:var(--bg);font-weight:600}
+.btn.apply:hover{background:var(--primary-2);border-color:var(--primary-2)}
 .addr{margin-bottom:4px}
 #drawer .contact{border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;
   margin-bottom:12px;background:var(--surface);box-shadow:var(--shadow)}
@@ -283,8 +342,10 @@ table.data tbody tr:last-child td{border-bottom:0}
   font-family:var(--mono);font-size:11.5px;border-radius:3px}
 #drawer details{margin-bottom:6px}
 #drawer summary{cursor:pointer;color:var(--primary);font-size:13px;padding:3px 0}
-.dfooter{padding-top:8px}
+.dfooter{padding-top:10px;border-top:1px solid var(--border)}
 .dimline{color:var(--ink4);font:11.5px/1.6 var(--mono)}
+.posttext summary{color:var(--ink2);font-size:12.5px}
+.posttext summary:hover{color:var(--primary)}
 
 /* keyword table inside the drawer */
 .kwt{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);
