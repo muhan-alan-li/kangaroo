@@ -264,26 +264,11 @@ def main():
         ok("parse_json finds the object inside prose",
            parse_json('Sure, here it is: {"a": 1} — done.') == {"a": 1})
 
-        # --- the copied contact-research primitives --------------------------
-        # The direct engine's address-verification guard rests on these: an address is only
-        # returned if it appears verbatim in a tool result, and Cloudflare hides addresses from a
-        # text-only read.
-        from server.brief.research import decode_cfemail, emails_in, _node_bin
-        from server.brief.generate import CONTACT_TOOLS, _emails_from, build_contact_agent_prompt
-        email = "jane.doe@acme.com"
-        key = 0x5A
-        encoded = format(key, "02x") + "".join(format(ord(c) ^ key, "02x") for c in email)
-        ok("cloudflare data-cfemail decodes", decode_cfemail(encoded) == email, decode_cfemail(encoded))
-        ok("emails_in keeps real addresses and drops assets and no-reply",
-           emails_in("write jane@acme.com, logo@2x.png, no-reply@acme.com") == ["jane@acme.com"],
-           emails_in("write jane@acme.com, logo@2x.png, no-reply@acme.com"))
-        ok("emails are found anywhere in a nested tool result",
-           "jane@acme.com" in _emails_from({"authors": [{"email": "jane@acme.com"}],
-                                            "text": "or bob@acme.com"}))
-        tool_names = {tool["function"]["name"] for tool in CONTACT_TOOLS}
-        ok("the contact loop exposes the local browser",
-           tool_names == {"web_search", "web_fetch", "browser_fetch", "github_commit_emails"},
-           tool_names)
+        # --- the deep-contact prompt ------------------------------------------
+        # The direct brief carries no contacts and `research.py` is gone with its loop;
+        # contact search happens on demand through the Hermes agent path
+        # (`--deep-contacts`), whose output-path and no-send rules are pinned here.
+        from server.brief.generate import build_contact_agent_prompt
         deep = build_contact_agent_prompt(
             {"id": "abc123", "company": "Acme", "title": "SWE",
              "location": "Vancouver", "url": "https://example.test/job"}, "the posting text")
@@ -292,11 +277,8 @@ def main():
         ok("the deep-contact prompt carries the contact rules",
            "never guess an address" in deep)
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ok("the browser helper exists",
-           os.path.exists(os.path.join(root, "server", "brief", "browser_fetch.mjs")))
-        # Under the service's minimal PATH `which node` fails, so the generator resolves node by
-        # absolute path; the test shell has node on PATH, so this only pins that a path is found.
-        ok("node is resolvable for the browser helper", bool(_node_bin()), _node_bin())
+        ok("the contact prompt file exists",
+           os.path.exists(os.path.join(root, "data", "config", "contact_research_system.md")))
     finally:
         conn.close()
         server.shutdown()

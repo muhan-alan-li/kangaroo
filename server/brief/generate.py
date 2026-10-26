@@ -11,13 +11,15 @@ text alone, stage B matches each requirement against the resume with met/transfe
 verdicts and verbatim evidence, stage C writes the brief and resume edits from that matrix, and
 `server/brief/validate.py` then drops mechanically: a `before` that is not verbatim in the resume,
 and a flag for any term an edit invents that neither the resume nor the posting shows. Three
-reasoning calls per brief total, no agent, no session. The contact loop (`research_contacts`)
-runs concurrently with the chain, since neither needs what the other produces.
+reasoning calls per brief total, no agent, no session. The brief carries no contacts: the
+contact-research loop this script used to run alongside the chain did not earn its keep and
+is gone. Finding a contact now happens on demand, through the Hermes agent (below).
 
 `--engine hermes` is the older one-shot agent (`hermes -z`). It exists for the half that needs
 the web: reading the team page that owns the posting, a public profile, and public commit
 metadata for a published address. Slower (a couple of minutes), and only worth it when contacts
-matter. Neither engine ever sends, applies or writes a ledger.
+matter. `--deep-contacts` runs only that agent's contact search and merges the result into an
+existing brief. Neither engine ever sends, applies or writes a ledger.
 
     /usr/bin/python3 -m server brief <posting-id>                   # direct DeepSeek (default)
     /usr/bin/python3 -m server brief <posting-id> --engine hermes   # agent + contact research
@@ -35,13 +37,12 @@ import json
 import os
 import shutil
 import subprocess
-import threading
 import time
 from datetime import datetime, timezone
 
 from ..config import ROOT
 from ..scan.core import atomic_write
-from . import llm, research, stages, validate
+from . import llm, stages, validate
 from .stages import MAX_POSTING_TEXT
 
 STATE = os.path.join(ROOT, "data", "state")
@@ -57,8 +58,6 @@ SKILL_DIR = os.path.expanduser(
     "~/.hermes/skills/productivity/job-application-run")
 
 DEFAULT_TIMEOUT = 420          # the agent path may read several pages; direct returns in seconds
-CONTACT_ROUNDS = 8             # tool-call rounds in the contact loop before it must answer
-CONTACT_TOOL_CHARS = 6000      # cap one tool result so a long page cannot blow the context
 REVIEW_TIMEOUT = 240           # the critic only reads what it is handed; it does no research
 
 
@@ -257,138 +256,8 @@ def direct_messages(row, text):
     ]
 
 
-# The tools the contact loop may call. They are the copied research primitives -- no agent, no
-# key -- and the model is told to fetch a page before citing an address from it. `browser_fetch`
-# is a local Chromium for the pages a plain GET cannot read.
-CONTACT_TOOLS = [
-    {"type": "function", "function": {
-        "name": "web_search",
-        "description": "Search the public web. Returns titles, URLs and snippets. Use it to find "
-                       "a company's team page, an engineer's public profile, or a hiring post.",
-        "parameters": {"type": "object", "properties": {
-            "query": {"type": "string", "description": "the search query"}},
-            "required": ["query"]}}},
-    {"type": "function", "function": {
-        "name": "web_fetch",
-        "description": "Fetch one public URL and return its visible text plus any email addresses "
-                       "published in its raw HTML, including Cloudflare-obfuscated ones. Read the "
-                       "page with this before citing an address.",
-        "parameters": {"type": "object", "properties": {
-            "url": {"type": "string"}}, "required": ["url"]}}},
-    {"type": "function", "function": {
-        "name": "browser_fetch",
-        "description": "Fetch one public URL in a real headless browser and return the rendered "
-                       "text plus any email addresses in the page. Use this instead of web_fetch "
-                       "when the page renders client-side or web_fetch came back nearly empty. "
-                       "Slower, so reach for it only after web_fetch.",
-        "parameters": {"type": "object", "properties": {
-            "url": {"type": "string"}}, "required": ["url"]}}},
-    {"type": "function", "function": {
-        "name": "github_commit_emails",
-        "description": "Recent commit authors (name, work email, commit URL) for a public GitHub "
-                       "repo such as 'stripe/stripe-python'. Commit metadata carries work "
-                       "addresses the company published.",
-        "parameters": {"type": "object", "properties": {
-            "repo": {"type": "string", "description": "owner/name"}},
-            "required": ["repo"]}}},
-]
-
-
-def _emails_from(value):
-    """Every address mentioned anywhere in a tool result, for the verbatim check."""
-    found = []
-    if isinstance(value, dict):
-        for item in value.values():
-            found += _emails_from(item)
-    elif isinstance(value, list):
-        for item in value:
-            found += _emails_from(item)
-    elif isinstance(value, str):
-        found += research.emails_in(value)
-    return found
-
-
-def _tool_result(name, args):
-    """Run one tool call. A failure is a result, not an exception, so the loop continues."""
-    try:
-        if name == "web_search":
-            return research.search(str(args.get("query") or ""), limit=6)
-        if name == "web_fetch":
-            return research.fetch(str(args.get("url") or ""))
-        if name == "browser_fetch":
-            return research.browser_fetch(str(args.get("url") or ""))
-        if name == "github_commit_emails":
-            return research.github_commit_emails(str(args.get("repo") or ""))
-        return {"error": f"unknown tool {name!r}"}
-    except Exception as exc:  # noqa: BLE001 -- the model decides what to do about it
-        return {"error": str(exc)}
-
-
-def contact_messages(row, text):
-    system = stages.read_prompt(CONTACT_PROMPT_PATH)
-    user = (
-        "# The posting\n\n"
-        f"- company: {row.get('company')}\n"
-        f"- title: {row.get('title')}\n"
-        f"- location: {row.get('location')}\n"
-        f"- url: {row.get('url')}\n\n"
-        "## Posting text\n\n```\n"
-        + (text or "(no posting text available)")[:MAX_POSTING_TEXT]
-        + "\n```\n\n"
-        "Find a published work address to email about this posting."
-    )
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
-
-
-def research_contacts(row, text, timeout=DEFAULT_TIMEOUT):
-    """The copied contact loop: search/fetch/browser/commit tools until the model can name one.
-
-    Returns `{contacts, contact_notes}`. Only addresses that appeared verbatim in a tool result
-    are kept, so a hallucinated address never reaches the brief -- the skill's "re-verify every
-    address yourself" rule, enforced in code instead of trusted to the model.
-    """
-    messages = contact_messages(row, text)
-    seen_emails = set()
-    for _ in range(CONTACT_ROUNDS):
-        message = llm.chat_message(messages, tools=CONTACT_TOOLS, timeout=timeout)
-        messages.append({key: message.get(key) for key in ("role", "content", "tool_calls")
-                         if message.get(key) is not None})
-        calls = message.get("tool_calls") or []
-        if not calls:
-            break
-        for call in calls:
-            function = call.get("function") or {}
-            try:
-                args = json.loads(function.get("arguments") or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            if not isinstance(args, dict):
-                args = {}
-            result = _tool_result(function.get("name") or "", args)
-            seen_emails.update(email.lower() for email in _emails_from(result))
-            messages.append({"role": "tool", "tool_call_id": call.get("id") or "",
-                             "content": json.dumps(result, ensure_ascii=False)[:CONTACT_TOOL_CHARS]})
-    messages.append({"role": "user", "content":
-                     "Stop searching and reply with the final JSON object only."})
-    try:
-        final = llm.chat_json(messages, timeout=timeout)
-    except llm.LLMError as exc:
-        return {"contacts": [], "contact_notes": f"contact research failed: {exc}"}
-    contacts = []
-    for contact in final.get("contacts") or []:
-        if not isinstance(contact, dict):
-            continue
-        email = str(contact.get("email") or "").strip()
-        if email and email.lower() in seen_emails:
-            contacts.append(contact)
-    notes = str(final.get("contact_notes") or "").strip()
-    if not contacts and not notes:
-        notes = "No published address was found in the sources searched."
-    return {"contacts": contacts, "contact_notes": notes}
-
-
-def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
-    """Generate the brief with the three-stage tailoring chain, contacts running alongside.
+def generate_direct(pid, timeout=DEFAULT_TIMEOUT):
+    """Generate the brief with the three-stage tailoring chain.
 
     Stage A extracts the posting's requirement contract (posting text only, resume withheld so
     it cannot bias what the posting asks for). Stage B matches every requirement against the
@@ -397,10 +266,8 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
     whose `before` is not verbatim in the resume, and flags a term an edit invents that neither
     the resume nor the posting shows; validity is enforced in code, not trusted to a prompt.
 
-    Three chain calls plus, concurrently, the contact tool loop (`research_contacts`): finding an
-    address needs only the row and the posting text, never the chain's outputs, so it starts with
-    stage A and its wall time hides inside the chain's. Only an address that appeared verbatim in
-    a tool result is kept.
+    Three chain calls, no agent. Finding a contact is deliberately not part of this flow: the
+    brief proves out the tailoring; contact search, when wanted, is `deep_contacts` below.
     """
     row = find_posting(pid)
     if not row:
@@ -417,21 +284,6 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
     started = time.monotonic()
     resume = stages.read_prompt(RESUME_PATH) or "(resume text is unavailable)"
 
-    # Contacts do not wait for the chain. Stage C's prompt returns an empty contact list on
-    # purpose -- the model must not invent an address -- so this loop is the only path that can
-    # populate them, and it needs nothing the chain produces.
-    found = {"contacts": [], "contact_notes": "contact research failed"}
-    contact_thread = None
-    if contacts:
-        def _run_contacts():
-            try:
-                found.update(research_contacts(row, text, timeout=timeout))
-            except Exception as exc:  # noqa: BLE001
-                found["contacts"] = []
-                found["contact_notes"] = f"contact research failed: {exc}"
-        contact_thread = threading.Thread(target=_run_contacts)
-        contact_thread.start()
-
     try:
         requirements = stages.stage_requirements(row, text)
         matches = stages.stage_matches(row, text, requirements, resume)
@@ -439,8 +291,6 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
         _atomic_write(raw_path(pid), json.dumps(
             {"stage_a": requirements, "stage_b": matches}, indent=1, ensure_ascii=False))
     except Exception as exc:  # noqa: BLE001 -- every failure is the page's to report
-        if contact_thread:
-            contact_thread.join(timeout=timeout)
         payload = {"status": "failed", "error": str(exc), "description_source": source,
                    "stage": "tailoring chain", "elapsed_s": round(time.monotonic() - started, 1)}
         write_result(pid, payload)
@@ -457,12 +307,6 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
     if flags:
         payload["reword_flags"] = flags
 
-    if contact_thread:
-        contact_thread.join(timeout=timeout)
-        payload["contacts"] = found["contacts"]
-        payload["contact_notes"] = found["contact_notes"]
-        payload["contacts_source"] = "direct tools"
-
     payload["status"] = "ok"
     payload["description_source"] = source
     payload["elapsed_s"] = round(time.monotonic() - started, 1)
@@ -473,12 +317,11 @@ def generate_direct(pid, timeout=DEFAULT_TIMEOUT, contacts=True):
     return payload
 
 
-def generate(pid, engine="deepseek", timeout=DEFAULT_TIMEOUT, runner=subprocess.run,
-             contacts=True):
+def generate(pid, engine="deepseek", timeout=DEFAULT_TIMEOUT, runner=subprocess.run):
     """Dispatch to the direct DeepSeek path or the Hermes agent path."""
     if engine == "hermes":
         return generate_agent(pid, timeout=timeout, runner=runner)
-    return generate_direct(pid, timeout=timeout, contacts=contacts)
+    return generate_direct(pid, timeout=timeout)
 
 
 def generate_agent(pid, timeout=DEFAULT_TIMEOUT, runner=subprocess.run):
@@ -590,10 +433,10 @@ def build_contact_agent_prompt(row, text):
 def deep_contacts(pid, timeout=DEFAULT_TIMEOUT, runner=subprocess.run):
     """Second-level contact search: the Hermes agent reads the web, not the direct tool loop.
 
-    The default brief runs the copied contact loop (`research_contacts`). This runs the older
-    agent path for the cases that loop misses, and merges what it finds into the existing brief
-    without touching the resume-tailoring advice. Writes the same running marker, so the client
-    polls one flag for both kinds of run.
+    The default brief no longer researches contacts. This runs the agent path for the cases
+    where a contact matters, and merges what it finds into the existing brief without touching
+    the resume-tailoring advice. Writes the same running marker, so the client polls one flag
+    for both kinds of run.
     """
     row = find_posting(pid)
     if not row:
@@ -656,10 +499,8 @@ def main(argv=None):
                     help="print the prompt that would be sent, and generate nothing")
     ap.add_argument("--list", action="store_true", help="list the cached briefs")
     ap.add_argument("--engine", choices=("deepseek", "hermes"), default="deepseek",
-                    help="deepseek: direct API calls plus the contact tool loop (default); "
+                    help="deepseek: direct API calls (default); "
                          "hermes: the older agent path")
-    ap.add_argument("--no-contacts", action="store_true",
-                    help="direct engine: skip the contact-research tool loop")
     ap.add_argument("--deep-contacts", action="store_true",
                     help="run only the Hermes agent contact search and merge it into the brief")
     args = ap.parse_args(argv)
@@ -714,8 +555,7 @@ def main(argv=None):
         print("contacts   :", len(payload.get("contacts") or []))
         return 0 if payload.get("status") == "ok" else 1
 
-    payload = generate(args.posting_id, engine=args.engine, timeout=args.timeout,
-                       contacts=not args.no_contacts)
+    payload = generate(args.posting_id, engine=args.engine, timeout=args.timeout)
     print(json.dumps({k: payload.get(k) for k in
                       ("status", "company", "title", "description_source", "elapsed_s", "error")},
                      indent=1))

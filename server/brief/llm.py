@@ -48,13 +48,13 @@ def _credential():
     return key, (base or entry.get("base_url") or DEFAULT_BASE).rstrip("/")
 
 
-def chat_message(messages, *, tools=None, model=None, max_tokens=6000, temperature=0.2,
+def chat_message(messages, *, model=None, max_tokens=6000, temperature=0.2,
                  timeout=180, response_json=False):
     """One completion, returning the raw assistant message (content and `tool_calls`).
 
-    `response_json` and `tools` are kept apart on purpose: JSON mode and tool calls do not mix,
-    so a tool loop sends neither until it wants the final object. Note that DeepSeek's thinking
-    mode rejects a forced `tool_choice` (only `auto` is accepted).
+    `response_json` is kept separate from any future tool use on purpose: JSON mode and tool
+    calls do not mix. Note that DeepSeek's thinking mode rejects a forced `tool_choice` (only
+    `auto` is accepted).
     """
     key, base = _credential()
     payload = {
@@ -63,8 +63,6 @@ def chat_message(messages, *, tools=None, model=None, max_tokens=6000, temperatu
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    if tools:
-        payload["tools"] = tools
     if response_json:
         payload["response_format"] = {"type": "json_object"}
     request = urllib.request.Request(

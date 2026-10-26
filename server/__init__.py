@@ -15,7 +15,8 @@ by role:
               harvest, boardstate, portal, keywords, and sources/ (one module per feed).
               engine.py is the `scan` command.
     brief/    the on-demand research engine -- generate (the `brief` command), the
-              contact-research primitives, the DeepSeek client, the Node fetch helper
+              three-stage tailoring chain, the DeepSeek client, and the Hermes
+              agent path behind `--deep-contacts`
     jobs/     the scheduled and maintenance jobs behind the rest of the commands:
               scan/ owns the scan job's scripts (sweep, mark-reported), retry/
               owns the retry job's (retry, prune); the rest are hand-run

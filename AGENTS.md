@@ -237,9 +237,10 @@ JavaScript with no build step. `server/api/app.py` answers the JSON the client c
 (everything the page shows), `GET /api/posting/<id>` (one posting's detail), and the two routes that
 write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the three-stage tailoring chain
 ( `server/brief/stages.py` -- requirements, evidence match, edits -- with `server/brief/validate.py`
-dropping a `before` that is not verbatim in the resume) plus the first-level contact loop),
+dropping a `before` that is not verbatim in the resume; the default brief carries no contacts),
 `POST /api/deep-contacts/<id>` (the same script with `--deep-contacts`: the Hermes agent's
-second-level contact search, merged into the existing brief), and the applied list's two routes:
+second-level contact search, merged into the existing brief -- contact search is on demand
+only, every attempt having proven ineffective), and the applied list's two routes:
 `POST /api/applied/<id>` (snapshot the posting as applied; the detail drawer's Apply button opens
 the posting in a new tab and fires it) and `POST /api/applied/remove` with `{"ids": [...]}` (the bulk removal, one write
 for the whole selection). Both applied routes answer with the whole applied list, so the page

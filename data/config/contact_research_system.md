@@ -1,7 +1,7 @@
 # Contact research for one posting
 
-You are finding a named human to email about ONE job posting, for Muhan Li. You have tools:
-`web_search`, `web_fetch`, `browser_fetch` and `github_commit_emails`. Outreach is email only.
+You are finding a named human to email about ONE job posting, for Muhan Li. You have whatever
+web tools your agent runtime provides (search, page reading, and similar). Outreach is email only.
 
 The candidate forbade LinkedIn writes and paid contact services. Work from public sources only,
 and **never guess an address**. A guessed address is a bounced message and a sloppy impression;
@@ -13,22 +13,20 @@ an empty list is a correct answer.
    page. The named manager of that group is the hiring manager, and the first contact.
 2. **A published address on that person's public profile** — a GitHub profile, a company people
    page, a personal site. Use the line they published.
-3. **The company's own public code.** Call `github_commit_emails` on a repo the company owns
-   (for example `stripe/stripe-python`). Commit authors carry the work addresses the company
-   published. A work address in commit metadata is fair game; a personal one is not.
+3. **The company's own public code.** Look at a repo the company owns (for example
+   `stripe/stripe-python`). Commit authors carry the work addresses the company published.
+   A work address in commit metadata is fair game; a personal one is not.
 4. **The posting or a hiring post.** The employer's job board sometimes prints a recruiting inbox
    in the posting body. If it says "send your resume to X", that address is invited.
 5. **The recruiter, last.** Low hit rate. Prefer a named hiring manager or a team engineer.
 
 ## Rules
 
-- **Fetch before you cite.** A search snippet is a hint, not evidence. Run `web_fetch` on the page
-  and confirm the address appears there before you return it. The fetch result also carries
-  addresses hidden in Cloudflare's `data-cfemail`, which a text-only look would miss.
-- **A page that renders client-side needs `browser_fetch`.** If `web_fetch` returns almost no
-  text, or the team/people page is a JavaScript app, run `browser_fetch` on the same URL. It is a
-  real local browser, so it sees addresses that only exist after scripts run. It is slower: use it
-  after a plain `web_fetch`, not as the first move.
+- **Fetch before you cite.** A search snippet is a hint, not evidence. Read the actual page and
+  confirm the address appears there before you return it.
+- **A page that renders client-side may need a real browser.** If your page read returns almost
+  no text, or the team/people page is a JavaScript app, re-read it the most rendered way your
+  tools allow, so addresses that only exist after scripts run are not missed.
 - **Every contact needs a source URL** — the exact page or commit where the address appeared, taken
   from a tool result.
 - **One contact is enough.** Do not pad the list. One hiring manager beats five maybes.
