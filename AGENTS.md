@@ -23,17 +23,25 @@ what the files are, how a day runs, and the rules that always apply.
                                      instead of Pi-hole, user 1000:1000), entrypoint.sh
                                      (sweep-if-stale, scan, mark-reported under one flock) and
                                      entrypoint-retry.sh (retry, then prune after a clean run).
-    client/                          The dashboard's web client, served by the server/ package. Two pages: index.html
-                                     (the postings table) and health.html (scan cost and Workday board health),
-                                     sharing styles.css -- the "Lilac" theme, a mix of Ant Design primitives,
-                                     Apple softness and terminal chrome -- and js/ (main, health, api, render,
-                                     table, detail, util). The detail drawer has Summary / Resumé / Contact
-                                     tabs; contact research and resumé-tailoring advice live in the latter
-                                     two. Plain HTML/CSS/ES modules -- no build step and no npm; edit and reload.
-                                     Client assets carry a `?v=` cache-buster: run `python3 -m server bump --bump`
-                                     after editing them, or tailscale serve's Last-Modified-only caching can
-                                     leave a browser holding one stale module and break the ES-module graph
-                                     (a page with an empty table).
+    client/                          The dashboard's web client, served by the server/ package. React-style
+                                     components in Preact + TypeScript, built by Vite: client/src/ holds the
+                                     sources (postings.tsx, health.tsx, detail.tsx, api.ts, lib.ts, types.ts,
+                                     detailParts.tsx) and `npm run build` (run inside client/, and it
+                                     typechecks first) writes the two fixed-name entry bundles to
+                                     client/dist/ -- postings.js and health.js, which the two HTML
+                                     shells reference -- plus a content-hashed Preact runtime chunk.
+                                     The `?v=` on the entry scripts is bumped by `server bump --bump`
+                                     so a browser cannot pin an old entry after a rebuild.
+                                     index.html (the postings table, with an Open / Applied switch)
+                                     and health.html (scan cost and Workday board health) share
+                                     styles.css -- the "Lilac" theme, a mix of Ant Design
+                                     primitives, Apple softness and terminal chrome -- and styles.css is
+                                     handwritten, untouched by the build. The detail drawer has Summary /
+                                     Résumé / Contact tabs; contact research and resumé-tailoring advice
+                                     live in the latter two. A posting's Apply button opens the posting in
+                                     a new tab and moves it to Applied, where rows can be selected in bulk
+                                     and removed. dist/ and package-lock.json are committed so the server
+                                     box needs no node; client/node_modules/ is not.
     server/                          The server package: the dashboard API, the scan engine and the
                                      brief/research engine, behind one entry point (`python3 -m server
                                      <command>`; with no command it serves the dashboard). api/ is the
@@ -58,7 +66,9 @@ what the files are, how a day runs, and the rules that always apply.
                                      (per-board Workday health and its retry schedule),
                                      workday_sweep.json (the cache the daily scan reads instead of
                                      re-sweeping 1,328 boards), sg_boards.json (the employer boards a
-                                     feed has revealed, for server/jobs/probe_ats.py), resume-backups/
+                                     feed has revealed, for server/jobs/probe_ats.py), applied.json (the
+                                     applied list the page writes: a snapshot per posting, so an
+                                     application outlives the feed's window), resume-backups/
                                      (every superseded resume PDF), plus scan.log and retry.log (the
                                      two no-agent jobs' captured output).
     systemd/                         The two timers and their services: job-scan.{service,timer}
@@ -107,8 +117,9 @@ is still logged in `data/state/outreach.jsonl`.
    two never hit Workday at once. Output is in `data/state/retry.log`. The old Hermes `job-retry`
    job is retired like `job-scan` above. Manual use: `docker compose -f docker/compose.yaml
    run --rm --entrypoint /usr/local/bin/retry-entrypoint retry --dry-run`.
-3. **On the user's go-ahead.** The agent fills the application in a real browser, screenshots it, queues it, and
-   submits on one approval.
+3. **Applying is the candidate's own step.** The agent does not fill or submit applications (retired 2026-10-07). It
+   reads the posting, rules on the fit, and hands back the answers and the gaps; the candidate submits from the
+   posting's own link.
 
 The single job is paused when the user asks; resume it with `cronjob_manage`. There is no agent in the scan loop,
 so a run cannot score postings or draft anything: the portal shows `server/scan/engine.py`'s deterministic keyword score.
@@ -226,13 +237,21 @@ JavaScript with no build step. `server/api/app.py` answers the JSON the client c
 (everything the page shows), `GET /api/posting/<id>` (one posting's detail), and the two routes that
 write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the three-stage tailoring chain
 ( `server/brief/stages.py` -- requirements, evidence match, edits -- with `server/brief/validate.py`
-dropping a `before` that is not verbatim in the resume) plus the first-level contact loop) and
+dropping a `before` that is not verbatim in the resume) plus the first-level contact loop),
 `POST /api/deep-contacts/<id>` (the same script with `--deep-contacts`: the Hermes agent's
-second-level contact search, merged into the existing brief). The client is read-only apart from those
-two buttons. `server/tests/test_dashboard.py` pins the routes and the static path check.
+second-level contact search, merged into the existing brief), and the applied list's two routes:
+`POST /api/applied/<id>` (snapshot the posting as applied; the detail drawer's Apply button opens
+the posting in a new tab and fires it) and `POST /api/applied/remove` with `{"ids": [...]}` (the bulk removal, one write
+for the whole selection). Both applied routes answer with the whole applied list, so the page
+repaints the two tables from the response instead of re-reading the 183 KB dashboard. Marking is
+a read-side record, not the retired application ledger -- it
+submits nothing. `server/api/triage.py` owns `data/state/applied.json` (a snapshot per posting, so
+the applied list survives the feed retiring the row), `server/tests/test_dashboard.py` pins the
+routes and the static path check.
 
 The server's modules are split by what they touch: `server/config.py` (paths, tiers, MIME),
-`server/api/store.py` (reading `data/state/`), `server/api/briefs.py` (the brief cache and launcher),
+`server/api/store.py` (reading `data/state/`), `server/api/triage.py` (the applied list),
+`server/api/briefs.py` (the brief cache and launcher),
 `server/api/net.py` (the bind address), `server/api/app.py` (the HTTP handler), `server/api/serve.py` (args and the
 serving loop).
 

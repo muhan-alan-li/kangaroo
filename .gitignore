@@ -19,5 +19,9 @@ data/candidate/
 # is personal (outreach.jsonl holds contacts).
 data/state/
 
+# The client's built bundles (client/dist/) are committed: the production server serves
+# client/ verbatim and has no node on the box. The dev dependency tree is not.
+client/node_modules/
+
 # Any PDF here is a personal document (resume, transcript).
 *.pdf
