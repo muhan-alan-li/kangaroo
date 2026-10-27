@@ -265,11 +265,11 @@ def main():
            parse_json('Sure, here it is: {"a": 1} — done.') == {"a": 1})
 
         # --- the deep-contact prompt ------------------------------------------
-        # The direct brief carries no contacts and `research.py` is gone with its loop;
-        # contact search happens on demand through the Hermes agent path
+        # The default brief carries no contacts; the old direct research loop is gone,
+        # and contact search happens on demand through the Hermes agent path
         # (`--deep-contacts`), whose output-path and no-send rules are pinned here.
-        from server.brief.generate import build_contact_agent_prompt
-        deep = build_contact_agent_prompt(
+        from server.brief.prompts import build_contact_prompt
+        deep = build_contact_prompt(
             {"id": "abc123", "company": "Acme", "title": "SWE",
              "location": "Vancouver", "url": "https://example.test/job"}, "the posting text")
         ok("the deep-contact prompt names its output path", "abc123.agent.json" in deep)
