@@ -43,19 +43,25 @@ what the files are, how a day runs, and the rules that always apply.
                                      and removed. dist/ and package-lock.json are committed so the server
                                      box needs no node; client/node_modules/ is not.
     server/                          The server package: the dashboard API, the scan engine and the
-                                     brief/research engine, behind one entry point (`python3 -m server
+                                     brief engine, behind one entry point (`python3 -m server
                                      <command>`; with no command it serves the dashboard). api/ is the
-                                     HTTP service (app routes, store reads data/state/, briefs launches a
-                                     generation, net binds, serve loops). scan/ is the scan engine
-                                     (engine.py plus core, parsing, filters, ledger, posting, pipeline,
-                                     boardstate, portal, keywords, harvest, boards and endpoints, and
-                                     sources/ with one module per feed). brief/ is the on-demand research engine (generate,
-                                     research, llm, and the Node fetch helper). jobs/ holds the
-                                     scheduled and maintenance commands: scan/ owns the scan job's
-                                     scripts (sweep, mark-reported), retry/ the retry job's (retry,
-                                     prune); the rest are hand-run utilities (refresh, probe-ats,
-                                     harvest, table, feed, bump, resume-text). config.py holds
-                                     the shared paths and constants; tests/ holds the four smoke tests.
+                                     HTTP service (app routes, store reads data/state/, triage owns the
+                                     applied list, briefs launches a generation, net binds, serve
+                                     loops). scan/ is the scan engine (engine.py plus core, parsing,
+                                     filters, ledger, posting, pipeline, boardstate, portal,
+                                     keywords, harvest, boards and endpoints, and sources/ with one
+                                     module per feed). brief/ is the on-demand brief engine, split
+                                     by stage: stages (the three prompts and model calls), chain (the
+                                     default engine), validate (mechanical edit checks), agent (the
+                                     older Hermes path and its review), contacts (the deep search),
+                                     prompts, posting (input lookup), state (brief files), llm, and
+                                     generate (the CLI). jobs/ holds the scheduled and maintenance
+                                     commands: scan/ owns the scan job's scripts (sweep,
+                                     mark-reported), retry/ the retry job's (retry, prune); the rest
+                                     are hand-run utilities (refresh, probe-ats, harvest, table,
+                                     feed, bump, resume-text). config.py holds the shared paths and
+                                     constants; fsutil.py the atomic-write helper; tests/ holds the
+                                     four smoke tests.
                                      Adding a source means a module in scan/sources/, a row in
                                      SOURCE_FUNCS, a block in data/config/sources.yaml, and a row in
                                      source_candidates.md. Local dev: `python3 -m server` serves
@@ -232,15 +238,16 @@ API is never on the LAN and never directly on the tailnet. Every request re-read
 is current the moment a scan finishes. For local development `python3 -m server` (no `--api-only`)
 serves `client/` and the API together on the Tailscale address and loopback, exactly as it used to.
 
-The page itself lives in `client/`, served verbatim: plain HTML, one stylesheet, and ES-module
-JavaScript with no build step. `server/api/app.py` answers the JSON the client calls -- `GET /api/dashboard`
+The page itself lives in `client/`, built by Vite from Preact + TypeScript sources in
+`client/src/` and served from `client/dist/`; the two HTML shells and `styles.css` are
+handwritten. `server/api/app.py` answers the JSON the client calls -- `GET /api/dashboard`
 (everything the page shows), `GET /api/posting/<id>` (one posting's detail), and the two routes that
-write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the three-stage tailoring chain
-( `server/brief/stages.py` -- requirements, evidence match, edits -- with `server/brief/validate.py`
-dropping a `before` that is not verbatim in the resume; the default brief carries no contacts),
-`POST /api/deep-contacts/<id>` (the same script with `--deep-contacts`: the Hermes agent's
-second-level contact search, merged into the existing brief -- contact search is on demand
-only, every attempt having proven ineffective), and the applied list's two routes:
+write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the default `chain.py` runs
+`stages.py` -- requirements, evidence match, edits -- with `validate.py` dropping a `before` that
+is not verbatim in the resume; the default brief carries no contacts),
+`POST /api/deep-contacts/<id>` (the same entry point with `--deep-contacts`: the Hermes agent's
+second-level contact search in `contacts.py`, merged into the existing brief -- contact search is
+on demand only, every attempt having proven ineffective), and the applied list's two routes:
 `POST /api/applied/<id>` (snapshot the posting as applied; the detail drawer's Apply button opens
 the posting in a new tab and fires it) and `POST /api/applied/remove` with `{"ids": [...]}` (the bulk removal, one write
 for the whole selection). Both applied routes answer with the whole applied list, so the page

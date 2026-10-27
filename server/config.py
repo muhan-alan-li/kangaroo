@@ -1,8 +1,9 @@
 """Paths, constants, and the two settings the server reads from data/config/.
 
-Everything lives under the workspace root: state files under `data/state/`, config under `data/config/`,
-the client under `client/`, and the brief generator under `bin/`. Keeping the paths here means
-a module can be imported and tested without pulling in the HTTP handler.
+Everything lives under the workspace root: state files under `data/state/`, config under
+`data/config/`, the client under `client/`, and the brief generator under `server/brief/`.
+Keeping the paths here means a module can be imported and tested without pulling in the HTTP
+handler.
 """
 from __future__ import annotations
 

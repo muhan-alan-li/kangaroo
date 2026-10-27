@@ -1,8 +1,9 @@
 """The HTTP surface: JSON API routes plus the static client.
 
-The API is three routes, and the static handler serves everything else out of `client/`. The
-handler is deliberately thin -- the state work lives in `store.py` and `briefs.py` -- so the
-routes are readable as routes.
+The API routes read state and start the two brief jobs; every other path is served from
+`client/` when this process is also hosting the page. The handler is deliberately thin --
+the state work lives in `store.py`, `triage.py` and `briefs.py` -- so the routes are readable
+as routes.
 """
 from __future__ import annotations
 
@@ -150,8 +151,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         """The write routes: start a brief, or move a posting on and off the applied list.
 
-        The brief generation is an agent run, so it cannot happen inside the request: the POST
-        launches `server/brief/generate.py` detached and answers at once, and the page polls
+        Brief generation runs a model call outside the request: the POST launches
+        `server/brief/generate.py` detached and answers at once, and the page polls
         GET /api/posting/<id> for the result. The applied writes are just a file, so they answer
         with what changed.
         """
