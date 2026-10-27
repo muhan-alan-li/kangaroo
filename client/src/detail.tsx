@@ -290,8 +290,8 @@ function BriefMissing(props: {
         {b.status === 'failed'
           ? <p class="bad">The last run failed{b.error ? ': ' + b.error : ''}.</p>
           : d.stale ? <p class="bad">The previous run stopped without finishing.</p> : null}
-        <p class="mut">No brief yet. Generate one to research contacts and get
-          résumé-tailoring advice.</p>
+        <p class="mut">No brief yet. Generate one for résumé-tailoring advice and an
+          honest fit verdict.</p>
       </div>
       {d.has_script
         ? <button class="btn" type="button" onClick={onBrief}>
@@ -359,8 +359,8 @@ function ContactPane({d, busy, onDeep}: {
     </section> : null}
     {!running && d.has_script ? <section class="deepsec">
       <h4>Deep search</h4>
-      <p class="mut">The brief runs the built-in contact loop. The Hermes agent can take a
-        second, wider pass over the public web — team pages, profiles, and public commit
+      <p class="mut">The default brief covers résumé tailoring only. The Hermes agent can
+        take a separate pass over the public web — team pages, profiles, and public commit
         metadata.</p>
       <p><button class="btn ghost" type="button" data-contacts={p.id} disabled={busy}>
         {busy ? 'starting…' : 'Run Hermes contact search'}
