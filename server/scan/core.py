@@ -3,7 +3,6 @@ HTML helpers every source uses."""
 
 from __future__ import annotations
 
-import contextlib
 import html
 import os
 import re
@@ -13,6 +12,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+try:
+    from ..fsutil import atomic_write  # re-exported: every state writer imports it from here
+except ImportError:  # the smoke tests import `scan` as a top-level package with server/ on sys.path
+    from fsutil import atomic_write
 from . import net
 from .net import is_dns_error
 
@@ -42,22 +45,6 @@ def load_yaml(*parts):
     path = os.path.join(ROOT, *parts)
     with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
-
-
-@contextlib.contextmanager
-def atomic_write(path):
-    """Yield a file handle for an atomic write: pid-tagged temp plus os.replace.
-
-    Every state writer uses this. The temp name carries the pid because two passes
-    can overlap (two overdue cron slots fire within the same second), and a shared
-    temp path lets one process rename the file while the other is still writing.
-    Callers still own their makedirs and their serialization -- this only owns
-    the temp dance.
-    """
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        yield fh
-    os.replace(tmp, path)
 
 
 def role_regex(opts):
