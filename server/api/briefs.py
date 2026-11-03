@@ -19,6 +19,11 @@ from .store import find_row, read_json
 # The reword entries the brief generator writes. New briefs use the object shape directly;
 # briefs cached before that schema existed hold one free-text sentence, so they are parsed
 # into the same fields here rather than left for each client to guess at.
+# The stage artifacts that sit beside a result in the same directory. They are not results,
+# so anything listing briefs has to skip them by suffix -- the same rule `server brief --list`
+# applies.
+_ARTIFACT_SUFFIXES = (".agent.json", ".raw.json", ".review.json")
+
 _QUOTES = "[\"\u201c\u2018\u2019']"
 _CHANGE_RE = re.compile(
     r'^(?P<where>.*?)\bchange\s+(?P<oq>' + _QUOTES + r')(?P<before>.+)(?P=oq)(?=\s|$)'
@@ -148,6 +153,25 @@ def normalize_brief(data):
     return data
 
 
+def _marker_is_fresh(marker):
+    """Is this `.running` marker a run that is still in flight?
+
+    A marker older than BRIEF_STALE_AFTER belongs to a run that died without writing a
+    result, so it is not running any more. An unreadable timestamp is believed, exactly as
+    `brief_for` has always believed it: the button may be pressed again either way, because
+    the stale report is what unlocks it.
+    """
+    if not marker:
+        return False
+    try:
+        from datetime import datetime, timezone
+        stamp = datetime.fromisoformat(str(marker.get("started_at")).replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - stamp).total_seconds()
+    except Exception:  # noqa: BLE001
+        return True
+    return age < BRIEF_STALE_AFTER
+
+
 def brief_for(pid):
     """The brief for a posting: its state, the result, and whether a run is in flight.
 
@@ -157,20 +181,46 @@ def brief_for(pid):
     """
     data = normalize_brief(read_json(os.path.join(BRIEFS, f"{pid}.json")))
     marker = read_json(os.path.join(BRIEFS, f"{pid}.running"))
-    running, started = False, None
-    if marker:
-        started = marker.get("started_at")
-        age = None
-        try:
-            from datetime import datetime, timezone
-            stamp = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
-            age = (datetime.now(timezone.utc) - stamp).total_seconds()
-        except Exception:  # noqa: BLE001
-            age = None
-        running = age is None or age < BRIEF_STALE_AFTER
-    return {"brief": data, "running": running, "started_at": started,
+    running = _marker_is_fresh(marker)
+    return {"brief": data, "running": running,
+            "started_at": (marker or {}).get("started_at"),
             "stale": bool(marker) and not running,
             "has_script": os.path.exists(BRIEF_SCRIPT)}
+
+
+def brief_index():
+    """Every brief on disk, keyed by posting id, for the dashboard's Shortlisted view.
+
+    One directory scan; the files are read through `store.read_json`, whose mtime cache keeps
+    the repeat requests a batch makes while it runs off the parse path. A row is worth
+    showing when it has a result or a run in flight -- a stale marker on its own is not a
+    brief, it is a crash the detail view already reports when the posting is opened.
+    """
+    out = {}
+    if not os.path.isdir(BRIEFS):
+        return out
+    for name in sorted(os.listdir(BRIEFS)):
+        if name.endswith(_ARTIFACT_SUFFIXES):
+            continue
+        if name.endswith(".running"):
+            entry = out.setdefault(name[:-len(".running")], {})
+            entry["running"] = _marker_is_fresh(read_json(os.path.join(BRIEFS, name)) or {})
+            continue
+        if not name.endswith(".json"):
+            continue
+        data = read_json(os.path.join(BRIEFS, name))
+        if not isinstance(data, dict):
+            continue
+        out.setdefault(name[:-5], {}).update({
+            "status": data.get("status") or "unknown",
+            "generated_at": data.get("generated_at"),
+            # The brief carries the row's own display fields, so a posting the feed has
+            # retired since can still be listed with a company and a title.
+            "title": data.get("title") or "",
+            "company": data.get("company") or "",
+            "url": data.get("url") or "",
+        })
+    return out
 
 
 def start_brief(pid):

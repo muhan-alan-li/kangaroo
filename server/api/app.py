@@ -131,6 +131,40 @@ class Handler(BaseHTTPRequestHandler):
         removed = triage.remove(ids)
         self._json({"removed": removed, "applied": triage.rows()})
 
+    def _start_briefs(self, ids):
+        """POST /api/brief/batch: start brief generation for a selection in one request.
+
+        Each id answers for itself: `started` means a generator was launched, `skipped` means
+        a brief already exists (or a run is already in flight) and `failed` means nothing
+        could be launched. Skipping is the rule rather than an optimisation -- a select-all
+        must not spend a model call on every row the reader has already read.
+        """
+        if not isinstance(ids, list) or not ids:
+            self._json({"error": 'expected {"ids": [...]}'}, 400)
+            return
+        ids = [str(i).strip() for i in ids]
+        if len(ids) > 100:
+            self._json({"error": "too many ids: a batch is at most 100"}, 400)
+            return
+        results = []
+        for pid in ids:
+            if not pid or any(c not in "0123456789abcdefABCDEF-" for c in pid):
+                results.append({"id": pid, "state": "failed", "message": "bad posting id"})
+                continue
+            brief = brief_for(pid)["brief"]
+            if isinstance(brief, dict) and brief.get("status") == "ok":
+                results.append({"id": pid, "state": "skipped",
+                                "message": "already has a brief"})
+                continue
+            ok, message = start_brief(pid)
+            results.append({"id": pid,
+                            "state": "started" if ok and message == "started"
+                            else ("skipped" if ok else "failed"),
+                            "message": message})
+        counts = {key: sum(1 for r in results if r["state"] == key)
+                  for key in ("started", "skipped", "failed")}
+        self._json({"results": results, **counts})
+
     def do_GET(self):  # noqa: N802 -- BaseHTTPRequestHandler's spelling
         path = self.path.split("?")[0]
         if path == "/api/dashboard":
@@ -149,17 +183,23 @@ class Handler(BaseHTTPRequestHandler):
         self._static(path)
 
     def do_POST(self):  # noqa: N802
-        """The write routes: start a brief, or move a posting on and off the applied list.
+        """The write routes: start one brief or a batch of them, or move a posting on and off
+        the applied list.
 
         Brief generation runs a model call outside the request: the POST launches
         `server/brief/generate.py` detached and answers at once, and the page polls
-        GET /api/posting/<id> for the result. The applied writes are just a file, so they answer
-        with what changed.
+        GET /api/posting/<id> for the result. The batch route launches one per id in the
+        same way, skipping the ids that already have a brief. The applied writes are just a
+        file, so they answer with what changed.
         """
         path = self.path.split("?")[0]
         if path == "/api/applied/remove":
             body = self._body()
             self._remove_applied((body or {}).get("ids") if isinstance(body, dict) else None)
+            return
+        if path == "/api/brief/batch":
+            body = self._body()
+            self._start_briefs((body or {}).get("ids") if isinstance(body, dict) else None)
             return
         if path.startswith("/api/applied/"):
             self._mark_applied(unquote(path[len("/api/applied/"):]).strip())
