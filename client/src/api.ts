@@ -1,7 +1,7 @@
 // The only place the client talks to the server. Everything else renders or filters what these
 // return. Mirrors the retired client/js/api.js one for one.
 
-import type {AppliedResponse, Dashboard, Detail} from './types';
+import type {AppliedResponse, BriefBatchResponse, Dashboard, Detail} from './types';
 
 async function getJSON<T>(url: string): Promise<T> {
   const r = await fetch(url, {headers: {'Accept': 'application/json'}, cache: 'no-store'});
@@ -22,6 +22,10 @@ export const fetchDashboard = () => getJSON<Dashboard>('/api/dashboard');
 export const fetchPosting = (id: string) => getJSON<Detail>('/api/posting/' + encodeURIComponent(id));
 export const triggerBrief = (id: string) =>
   postJSON<Record<string, unknown>>('/api/brief/' + encodeURIComponent(id));
+// One request for a selection: the server starts each generator that is not already running
+// and reports what it did per id, so the page can say which rows were skipped.
+export const startBriefs = (ids: string[]) =>
+  postJSON<BriefBatchResponse>('/api/brief/batch', {ids});
 // Second level: the Hermes agent contact search, merged into the existing brief server-side.
 export const triggerContacts = (id: string) =>
   postJSON<Record<string, unknown>>('/api/deep-contacts/' + encodeURIComponent(id));

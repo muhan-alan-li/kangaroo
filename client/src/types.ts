@@ -11,6 +11,9 @@ export interface Posting {
   posted_derived?: string;
   scanned_at?: string;
   age_days?: number | null;
+  // The feed retires a row `max_age_days` after its publish date; the server recomputes the
+  // count on every request, so these two are the posting's deadline as of now.
+  expires_on?: string | null;
   expires_in_days?: number | null;
   keywords?: string[];
   score?: number | null;
@@ -25,6 +28,8 @@ export interface Posting {
   skills_gap?: string[];
   source?: string;
   ats?: string;
+  // Set by the dashboard when a brief exists for this posting: "ok", "failed" or "running".
+  brief_status?: string;
 }
 
 export interface AppliedRow {
@@ -35,6 +40,44 @@ export interface AppliedRow {
   url: string;
   tier?: string;
   applied_at: string;
+  expires_on?: string | null;
+  expires_in_days?: number | null;
+}
+
+// One row of the Shortlisted view: a posting with a brief. `live` is false once the feed has
+// retired the posting, so the row carries the brief's own company/title and may only be
+// linked out -- /api/posting/<id> can no longer answer for it.
+export interface ShortlistRow {
+  id: string;
+  title: string;
+  company: string;
+  url: string;
+  location?: string;
+  tier?: string;
+  live: boolean;
+  status: string;              // "ok" | "failed" | "running"
+  generated_at?: string;
+  posted?: string;
+  posted_derived?: string;
+  scanned_at?: string;
+  age_days?: number | null;
+  expires_on?: string | null;
+  expires_in_days?: number | null;
+}
+
+// One id's outcome from POST /api/brief/batch.
+export interface BriefStart {
+  id: string;
+  state: 'started' | 'skipped' | 'failed';
+  message: string;
+}
+
+export interface BriefBatchResponse {
+  results: BriefStart[];
+  started: number;
+  skipped: number;
+  failed: number;
+  error?: string;
 }
 
 export interface Reword {
@@ -80,6 +123,7 @@ export interface Dashboard {
   tiers: string[];
   postings: Posting[];
   applied: AppliedRow[];
+  shortlisted?: ShortlistRow[];
   // health page only
   boards_total?: number;
   boards_ok?: number;

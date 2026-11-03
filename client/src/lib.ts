@@ -18,7 +18,9 @@ export const webUrl = (url?: string | null): string =>
 
 // Workday's board API publishes only a relative age ("Posted Today"), never an absolute date,
 // so the date is derivable from age_days and the moment the scan ran -- good to the day.
-export function postedOf(p: Posting, ranAt?: string): {date: string; derived: boolean} {
+// Takes a partial posting: the shortlisted view renders rows the feed has retired, which
+// carry only the date fields the brief knew about.
+export function postedOf(p: Partial<Posting>, ranAt?: string): {date: string; derived: boolean} {
   if (p.posted) return {date: p.posted, derived: false};
   if (p.posted_derived) return {date: p.posted_derived, derived: true};
   const stamp = p.scanned_at || ranAt || '';

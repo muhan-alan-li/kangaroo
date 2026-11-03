@@ -73,11 +73,11 @@ input[type=search]{appearance:none;background:var(--surface);border:1px solid va
   border-radius:var(--r);color:var(--ink);padding:7px 12px;min-width:260px;font:inherit;font-size:13.5px}
 input[type=search]::placeholder{color:var(--ink4)}
 input[type=search]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--lilac-200)}
-select#locfilter{appearance:none;background:var(--surface);border:1px solid var(--border-2);
+select.locfilter{appearance:none;background:var(--surface);border:1px solid var(--border-2);
   border-radius:var(--r);color:var(--ink);padding:7px 30px 7px 12px;font:inherit;font-size:13.5px;
   min-width:180px;background-image:linear-gradient(45deg,transparent 50%,var(--ink3) 50%),linear-gradient(135deg,var(--ink3) 50%,transparent 50%);
   background-position:calc(100% - 17px) 14px,calc(100% - 12px) 14px;background-size:5px 5px;background-repeat:no-repeat}
-select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--lilac-200)}
+select.locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--lilac-200)}
 .themebtn{margin-left:4px;background:transparent;border:1px solid var(--chrome-line);
   color:var(--chrome-dim);border-radius:6px;padding:4px 10px;cursor:pointer;
   font:11.5px/1 var(--mono)}
@@ -93,7 +93,8 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 .chip b{color:var(--ink4);font:11px/1 var(--mono);margin-left:5px}
 .chip.on b{color:var(--primary)}
 
-/* Open / Applied switch. The same segmented control as above, with a live count per view. */
+/* Open / Shortlisted / Applied switch. The same segmented control as above, with a live
+   count per view. */
 .viewbar{display:flex;align-items:center;gap:12px;padding:12px 18px;
   border-bottom:1px solid var(--border);background:var(--surface-2)}
 .seg button{appearance:none;background:transparent;border:0;border-radius:6px;color:var(--ink2);
@@ -118,9 +119,10 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 .shortlist thead th.sorted::after{content:" ↓";font-size:11px}
 .shortlist thead th.sorted[data-dir=asc]::after{content:" ↑"}
 .shortlist th.r,.shortlist td.r{text-align:right}
-.shortlist th:nth-child(1),.shortlist td:nth-child(1){width:205px}
-.shortlist th:nth-child(2),.shortlist td:nth-child(2){width:160px}
-.shortlist th:nth-child(3),.shortlist td:nth-child(3){width:220px}
+/* One column set across all three tabs, so the same posting reads the same way in each:
+   date, deadline, location, company, title -- with the row's own checkbox first (Open,
+   Applied) and the brief state last (Shortlisted). The per-table widths below are the only
+   thing that differs, and only where a table has a column the others do not. */
 .shortlist tbody tr:hover td{background:var(--lilac-100)}
 .shortlist tbody tr.clickable{cursor:pointer}
 .shortlist td.posted{font:12.5px/1.4 var(--tabmono);color:var(--ink2);white-space:nowrap}
@@ -128,7 +130,6 @@ select#locfilter:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0
 .shortlist td.title{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shortlist td.loc{color:var(--ink3)}
 .age{color:var(--ink4);margin-left:7px}
-.closing{color:var(--error);margin-left:7px}
 .derived{border-bottom:1px dotted var(--ink4);cursor:help}
 .mut{color:var(--ink3)}
 tbody tr.flt{display:none}
@@ -138,15 +139,9 @@ tbody tr.flt{display:none}
    page's height so the pager below never shifts when a filter leaves fewer rows. */
 .tablewrap{min-height:580px}
 
-/* The applied section ------------------------------------------------------- */
-/* Its first column is a checkbox, so the open table's column widths do not apply. */
-.shortlist.applied thead th{cursor:default}
-.shortlist.applied th:nth-child(1),.shortlist.applied td:nth-child(1){width:46px;padding-right:0}
-.shortlist.applied th:nth-child(2),.shortlist.applied td:nth-child(2){width:128px}
-.shortlist.applied th:nth-child(3),.shortlist.applied td:nth-child(3){width:220px}
-.shortlist.applied td.title a{color:var(--ink);display:inline-block;max-width:100%;
+/* The applied list's rows link out rather than opening the drawer, so its titles are anchors. */
+.shortlist td.title a{color:var(--ink);display:inline-block;max-width:100%;
   overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
-.appliedbar{gap:14px}
 .selall{display:inline-flex;align-items:center;gap:8px;color:var(--ink2);font-size:13px;
   cursor:pointer;user-select:none}
 input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;margin:0;
@@ -154,6 +149,54 @@ input[type=checkbox]{accent-color:var(--primary);width:15px;height:15px;margin:0
 .applied-badge{display:inline-block;padding:1px 9px;border-radius:999px;margin-right:4px;
   background:var(--primary-soft);border:1px solid var(--primary-line);
   color:var(--primary);font-size:11.5px;font-weight:600}
+
+/* The stages that carry a selection column (Open, Applied) put it first, so every content
+   column keeps its width one position to the right. Shortlisted is the same table without it. */
+.shortlist th:nth-child(1),.shortlist td:nth-child(1){width:205px}
+.shortlist th:nth-child(2),.shortlist td:nth-child(2){width:160px}
+.shortlist th:nth-child(3),.shortlist td:nth-child(3){width:220px}
+.shortlist.chkcol th:nth-child(1),.shortlist.chkcol td:nth-child(1){width:46px;padding-right:0}
+.shortlist.chkcol th:nth-child(2),.shortlist.chkcol td:nth-child(2){width:205px}
+.shortlist.chkcol th:nth-child(3),.shortlist.chkcol td:nth-child(3){width:160px}
+.shortlist.chkcol th:nth-child(4),.shortlist.chkcol td:nth-child(4){width:220px}
+.shortlist.chkcol thead th.chk{cursor:default}
+/* An open row that already has a brief says so before its title. The title column is the
+   one with overflow set, so a long title truncates instead of the chip spilling over. */
+.briefed{display:inline-block;padding:0 6px;margin-right:7px;border-radius:999px;
+  background:var(--primary-soft);border:1px solid var(--primary-line);color:var(--primary);
+  font:10.5px/15px var(--mono);vertical-align:1px;white-space:nowrap}
+.briefed.err{background:transparent;border-color:var(--border-2);color:var(--error)}
+.batchnote{color:var(--ink3);font:12px/1.4 var(--mono)}
+/* Sits beside the Generate briefs button and says, before the press, how much of the
+   selection the batch will skip because the brief already exists. */
+.batchhint{color:var(--ink3);font:12px/1.4 var(--mono);
+  border-left:2px solid var(--primary-line);padding-left:9px}
+
+/* The batch dialog --------------------------------------------------------- */
+/* A skip is the batch behaving correctly, so the dialog is a report, not an alert. It is the
+   one place a reader who ticked eight rows learns why six generators started. */
+.modalwrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
+  justify-content:center;padding:20px;background:rgba(23,16,45,.44);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.modal{width:min(560px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  box-shadow:0 18px 50px rgba(23,16,45,.28);padding:20px 22px 16px}
+.modal h3{margin:0 0 5px;font-size:16px;font-weight:600;color:var(--ink)}
+.modal .modalsub{margin:0 0 15px;font-size:13px;color:var(--ink2)}
+.modalblock{margin-bottom:14px;min-height:0;display:flex;flex-direction:column}
+.modal h4{margin:0 0 7px;font-size:11.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink3)}
+.modallist{margin:0;padding:0;list-style:none;overflow-y:auto;max-height:34vh;
+  border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2)}
+.modallist li{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:7px 12px;border-bottom:1px solid var(--border);font-size:13px}
+.modallist li:last-child{border-bottom:0}
+.modallist .mco{flex:none;max-width:45%;font-weight:600;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modallist .mti{min-width:0;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.modallist .mmsg{margin-left:auto;flex:none;color:var(--ink4);font:11.5px/1.4 var(--mono)}
+.modalact{display:flex;justify-content:flex-end;gap:10px;padding-top:2px}
 
 /* antd Tag for the location cell */
 .tag{display:inline-flex;align-items:center;gap:6px;color:var(--ink2);font-size:12.5px;

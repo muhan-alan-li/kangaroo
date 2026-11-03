@@ -1,53 +1,95 @@
-// The postings page. One dashboard payload is fetched once, then everything is filtered,
-// sorted and paged client-side so the table stays instant on a phone with no connection.
+// The postings page: one payload, three stages of one table.
+//
+// Everything downstream of the fetch is client-side, so the table stays instant on a phone with
+// no connection. The lists themselves -- columns, filters, sorting, paging and the measurement
+// that decides how many rows fit -- live in `table.tsx`, because all three stages draw the same
+// table. What is left here is the pipeline:
+//
+//   Open  -- every posting the feed carries that has no brief and no application
+//   Shortlisted -- every posting with a brief that has not been applied to
+//   Applied -- the applied snapshots, which outlive the feed
+//
+// Stage is the first filter level and the tab bar is its control; the location bucket and the
+// needle are the second, applied inside whichever stage is showing.
 
-import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from 'preact/hooks';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {render} from 'preact';
-import {fetchDashboard, removeApplied} from './api';
+import {fetchDashboard, removeApplied, startBriefs} from './api';
 import type {AppliedRow, Dashboard, Posting} from './types';
-import {initThemeToggle, postedOf, tierLabel, webUrl} from './lib';
+import {initThemeToggle, postedOf, webUrl} from './lib';
 import {Drawer} from './detail';
+import {SIZE_CHOICES, StageTable, filterRows, sortRows} from './table';
+import type {Row, SizeChoice, SortKey} from './table';
 
 initThemeToggle();
 
-// Newest posting first is the default: the freshest requisition is the one still worth a look.
-// Anything undated sorts last in either direction (undated means "no publish date", not 1970).
-const DEFAULT_SORT_KEY = 'posted';
+const DEFAULT_SORT_KEY: SortKey = 'date';
 const DEFAULT_SORT_DIR = -1;
-const DEFAULT_PAGE_SIZE = 10;
-const FIT_MIN = 3;
-const FIT_MAX = 30;
-const FRAME_PX = 72 + 20 + 28;   // topbar + page top pad + page bottom pad
-const SIZE_CHOICES = new Set(['fit', '10', '25', '50']);
+// Above this a batch confirm is worth the interruption: every id is a model call.
+const BATCH_CONFIRM_AT = 20;
 
-const storedSize = () => {
+type Stage = 'open' | 'shortlist' | 'applied';
+
+// One row a batch skipped or could not start, named from the posting it refers to: the server
+// answers ids, the reader needs a company and a title.
+interface BriefRow {id: string; company: string; title: string; message?: string}
+
+// What the batch dialog reports. Only rows that did not start are carried, because those are
+// the ones the reader has to be told about.
+interface BatchReport {
+  total: number;
+  started: number;
+  skipped: BriefRow[];
+  failed: BriefRow[];
+}
+
+const storedSize = (): SizeChoice => {
   try {
-    const v = localStorage.getItem('jobhunt-pagesize') || 'fit';
+    const v = (localStorage.getItem('jobhunt-pagesize') || 'fit') as SizeChoice;
     return SIZE_CHOICES.has(v) ? v : 'fit';
   } catch { return 'fit'; }
 };
 
+// What an open row says about a brief it already has. The pipeline now moves a briefed row to
+// Shortlisted, so this only appears for a retryable failure or for a row another tab is briefing.
+function briefChip(p: Posting){
+  if (p.brief_status === 'ok')
+    return {text: 'brief', cls: '', tip: 'a brief already exists — Generate briefs skips this row'};
+  if (p.brief_status === 'running')
+    return {text: 'briefing…', cls: '',
+            tip: 'a brief is generating now — Generate briefs skips this row'};
+  if (p.brief_status === 'failed')
+    return {text: 'brief failed', cls: ' err', tip: 'the last brief failed — Generate briefs tries again'};
+  return undefined;
+}
+
 function App(){
   const [D, setD] = useState<Dashboard | null>(null);
   const [failed, setFailed] = useState(false);
-  const [view, setView] = useState<'open' | 'applied'>('open');
+  const [stage, setStage] = useState<Stage>('open');
+  // The second filter level, shared by the three stages: it is one table, so switching stages
+  // keeps the bucket and the needle the reader set.
   const [needle, setNeedle] = useState('');
   const [tier, setTier] = useState('');
   const [sortKey, setSortKey] = useState(DEFAULT_SORT_KEY);
   const [sortDir, setSortDir] = useState(DEFAULT_SORT_DIR);
-  const [page, setPage] = useState(1);
-  const [sizeChoice, setSizeChoice] = useState(() => storedSize());
-  // The fit page size is measured: rows fill exactly the space between the table head and
-  // the pager, so the whole page lands with no scrollbar.
-  const [fitSize, setFitSize] = useState(FIT_MIN);
-  const [picks, setPicks] = useState<string[]>([]);
+  const [size, setSize] = useState<SizeChoice>(() => storedSize());
+  // Two selections, one per stage that has one: Open's drives brief generation, Applied's
+  // drives removal, and they must not carry across the stage switch.
+  const [openPicks, setOpenPicks] = useState<string[]>([]);
+  const [appliedPicks, setAppliedPicks] = useState<string[]>([]);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchNote, setBatchNote] = useState('');
+  const [batchReport, setBatchReport] = useState<BatchReport | null>(null);
   const [pid, setPid] = useState<string | null>(null);
-  const [fitTick, setFitTick] = useState(0);   // bumped by fonts.ready and resize
 
-  // Applied postings are not in the open list: marking one moves it to the applied section,
-  // which is the whole point of the click.
+  // Applied postings are not in any other list: marking one moves it here, which is the point.
   const appliedIds = useMemo(() =>
     new Set((D?.applied || []).map(a => String(a.id))), [D?.applied]);
+  // A picked id is a bare string and the row that explains it is in the payload, so a batch
+  // result is named by looking the row up here rather than asking the server to repeat it.
+  const byId = useMemo(() =>
+    new Map((D?.postings || []).map(p => [String(p.id), p] as const)), [D?.postings]);
 
   // Reload is the one path after a write whose response carried no applied list (an older
   // server, a proxy in the way): re-read the whole dashboard and repaint.
@@ -69,157 +111,184 @@ function App(){
     setD(prev => prev ? {...prev, applied: rows} : prev);
   }, [reload]);
 
-  const counts = useMemo(() => ({
-    open: (D?.postings || []).filter(p => !appliedIds.has(String(p.id))).length,
-    applied: (D?.applied || []).length,
-  }), [D, appliedIds]);
+  // ---------------------------------------------------------------- the three stages' rows
 
-  // Location buckets in tier order, with the seen-but-untiered ones carried behind.
-  const locationOptions = useMemo(() => {
-    if (!D) return [];
-    const have: Record<string, number> = {};
-    for (const p of D.postings){
-      if (p.tier && !appliedIds.has(String(p.id)))
-        have[p.tier] = (have[p.tier] || 0) + 1;
-    }
-    const known = D.tiers.filter(t => have[t]);
-    const extra = Object.keys(have).filter(t => !D.tiers.includes(t));
-    return known.concat(extra).map(t => ({t, n: have[t]}));
-  }, [D, appliedIds]);
+  // A posting that has a brief is not open any more -- the server already drops it, and the
+  // applied filter here covers the instant between the drawer's Apply and the next reload.
+  const openRows = useMemo<Row[]>(() => (D?.postings || [])
+    .filter(p => !appliedIds.has(String(p.id)))
+    .map(p => {
+      const po = postedOf(p, D?.ran_at);
+      return {
+        id: String(p.id),
+        date: po.date,
+        derived: po.derived,
+        age: p.age_days === null || p.age_days === undefined ? undefined : p.age_days + 'd',
+        tier: p.tier,
+        company: p.company,
+        title: p.title,
+        location: p.location,
+        clickable: true,
+        picked: openPicks.includes(String(p.id)),
+        chip: briefChip(p),
+      };
+    }), [D, appliedIds, openPicks]);
 
-  // Filter, then sort. Applied rows drop out here rather than in the markup.
-  const hits = useMemo(() => {
-    if (!D) return [];
-    const q = needle.toLowerCase();
-    const out = D.postings.filter(p => {
-      if (appliedIds.has(String(p.id))) return false;
-      if (tier && p.tier !== tier) return false;
-      if (!q) return true;
-      const hay = [p.company, p.title, p.location, (p.keywords || []).join(' ')]
-        .join(' ').toLowerCase();
-      return hay.includes(q);
-    });
-    const dir = sortDir;
-    out.sort((a, b) => {
-      if (sortKey === 'posted'){
-        const x = postedOf(a, D.ran_at).date, y = postedOf(b, D.ran_at).date;
-        if (x && y) return x.localeCompare(y) * dir;
-        if (!x && !y) return 0;
-        return x ? -1 : 1;
-      }
-      if (sortKey === 'tier'){
-        const tx = D.tiers.indexOf(a.tier || ''), ty = D.tiers.indexOf(b.tier || '');
-        return (tx - ty) * dir;
-      }
-      const k = sortKey as 'company' | 'title';
-      return ((a[k] || '').localeCompare(b[k] || '')) * dir;
-    });
-    return out;
-  }, [D, appliedIds, needle, tier, sortKey, sortDir]);
+  // A live row opens the drawer like an open row; a retired one can only be linked out, because
+  // /api/posting/<id> has nothing left to show for a posting the feed has let go. Its company
+  // and title come from the brief, so the row still says what it is.
+  const shortlistRows = useMemo<Row[]>(() => (D?.shortlisted || [])
+    .filter(r => !appliedIds.has(String(r.id)))
+    .map(r => {
+      const po = postedOf(r, D?.ran_at);
+      return {
+        id: String(r.id),
+        date: po.date,
+        derived: po.derived,
+        age: r.age_days === null || r.age_days === undefined ? undefined : r.age_days + 'd',
+        tier: r.tier,
+        company: r.company,
+        title: r.title || '(untitled)',
+        location: r.location,
+        clickable: r.live,
+        href: r.live ? undefined : webUrl(r.url) || undefined,
+      };
+    }), [D, appliedIds]);
 
-  // Fit is measured, not configured. A manual rows choice disables the fit until "Fit" is
-  // picked again; the choice persists in localStorage in chooseSize below.
-  const pageSize = sizeChoice === 'fit'
-    ? fitSize
-    : (parseInt(sizeChoice, 10) || DEFAULT_PAGE_SIZE);
+  const appliedRows = useMemo<Row[]>(() => (D?.applied || []).map(a => ({
+    id: String(a.id),
+    date: a.applied_at ? a.applied_at.slice(0, 10) : '',
+    tier: a.tier,
+    company: a.company,
+    title: a.title || '(untitled)',
+    location: a.location,
+    href: webUrl(a.url) || undefined,
+    picked: appliedPicks.includes(String(a.id)),
+  })), [D, appliedPicks]);
 
-  const pages = Math.max(1, Math.ceil(hits.length / pageSize));
-  const safePage = Math.min(Math.max(1, page), pages);
-  const start = (safePage - 1) * pageSize;
-  const pageRows = hits.slice(start, start + pageSize);
+  // Filter level two, then the sort. The stage's own date is the default order.
+  const visible = useCallback((rows: Row[]) =>
+    sortRows(filterRows(rows, needle, tier), sortKey, sortDir, D?.tiers || []),
+  [needle, tier, sortKey, sortDir, D?.tiers]);
 
-  // The ideal fit size is one arithmetic pass over the live layout; the trim loop then runs
-  // below, after paint, because sub-pixel round-off only shows in the real scrollHeight.
-  const measureIdeal = useCallback(() => {
-    const viewbar = document.querySelector<HTMLElement>('.viewbar');
-    const openview = document.getElementById('openview');
-    const toolbar = openview?.querySelector<HTMLElement>('.toolbar');
-    const thead = openview?.querySelector<HTMLElement>('.shortlist thead');
-    const pager = document.getElementById('pager');
-    const tr = openview?.querySelector<HTMLElement>('#rows tr');
-    // The open pane is hidden on the applied view; its zero-height boxes would measure as a
-    // huge page. A null answer means "not measurable now", not "a page of zero rows".
-    if (!thead || !thead.getBoundingClientRect().height) return null;
-    const rowH = tr ? tr.getBoundingClientRect().height : 52;
-    return Math.min(FIT_MAX, Math.max(FIT_MIN, Math.floor(
-      (window.innerHeight - FRAME_PX - (viewbar?.offsetHeight || 0)
-       - (toolbar?.offsetHeight || 60) - thead.getBoundingClientRect().height
-       - (pager?.offsetHeight || 49)) / rowH)));
-  }, []);
+  const openHits = useMemo(() => visible(openRows), [visible, openRows]);
+  const shortlistHits = useMemo(() => visible(shortlistRows), [visible, shortlistRows]);
+  const appliedHits = useMemo(() => visible(appliedRows), [visible, appliedRows]);
 
-  const fitNow = useCallback(() => {
-    const ideal = view === 'open' ? measureIdeal() : null;
-    if (ideal !== null) setFitSize(ideal);
-    setFitTick(t => t + 1);
-  }, [measureIdeal, view]);
-
-  // Pin exactly one page of space under the table so the pager never moves under filtering.
-  useLayoutEffect(() => {
-    const openview = document.getElementById('openview');
-    if (!openview || openview.hidden) return;
-    const wrap = openview.querySelector<HTMLElement>('.tablewrap');
-    const thead = openview.querySelector<HTMLElement>('.shortlist thead');
-    const tr = openview.querySelector<HTMLElement>('#rows tr');
-    if (wrap && thead){
-      const rowH = tr ? tr.getBoundingClientRect().height : 52;
-      wrap.style.minHeight = Math.ceil(thead.getBoundingClientRect().height + pageSize * rowH + 2) + 'px';
-    }
-  }, [pageSize, hits.length, sizeChoice, view]);
-
-  // After paint: trim a row at a time until the document truly fits, bounded so a tiny
-  // viewport just scrolls a little.
-  useEffect(() => {
-    if (sizeChoice !== 'fit') return;
-    if (document.documentElement.scrollHeight <= window.innerHeight + 1) return;
-    if (fitSize <= FIT_MIN) return;
-    const t = setTimeout(() => setFitSize(s => s - 1), 30);
-    return () => clearTimeout(t);
-  }, [sizeChoice, fitSize, fitTick, hits.length, needle, tier]);
-
-  // First fit once rows exist; re-fit when the webfonts land or the window is resized.
-  useEffect(() => {
-    if (sizeChoice === 'fit') fitNow();
-  }, [view, hits.length > 0, sizeChoice, fitNow]);
-  useEffect(() => {
-    document.fonts?.ready.then(() => fitNow());
-    let t: ReturnType<typeof setTimeout> | null = null;
-    const onResize = () => {
-      if (t) clearTimeout(t);
-      t = setTimeout(fitNow, 150);
-    };
-    window.addEventListener('resize', onResize);
-    return () => { if (t) clearTimeout(t); window.removeEventListener('resize', onResize); };
-  }, [fitNow]);
-
-  const chooseSize = (v: string) => {
-    try { localStorage.setItem('jobhunt-pagesize', v); } catch { /* private mode */ }
-    setSizeChoice(v);
-    if (v !== 'fit'){
-      const wrap = document.querySelector<HTMLElement>('.tablewrap');
-      if (wrap) wrap.style.minHeight = '';
-    }
+  const counts = {
+    open: openRows.length, shortlist: shortlistRows.length, applied: appliedRows.length,
   };
 
-  function onSort(k: string){
-    const dir = sortKey === k ? -sortDir : (k === 'posted' ? -1 : 1);
-    setSortKey(k); setSortDir(dir); setPage(1);
-  }
+  // A selection only means anything while its rows are on screen. Filtering the table, or
+  // marking one of the picked rows applied, must not leave hidden ids behind for the batch to
+  // spend a model call on.
+  useEffect(() => {
+    setOpenPicks(prev => {
+      if (!prev.length) return prev;
+      const live = new Set(openHits.map(r => r.id));
+      const next = prev.filter(id => live.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [openHits]);
 
-  // Drawer writes to the applied list; these callbacks hand its two responses to the paint.
+  // How many of the selection the batch will skip: a brief that already exists, or a run still
+  // in flight. Shown before the button is pressed, so the dialog afterwards confirms what the
+  // toolbar already said rather than announcing it.
+  const briefedPicks = useMemo(() => {
+    let n = 0;
+    for (const id of openPicks){
+      const status = byId.get(id)?.brief_status;
+      if (status === 'ok' || status === 'running') n++;
+    }
+    return n;
+  }, [openPicks, byId]);
+
+  // ------------------------------------------------------------------------- the writes
+
   const drawerIsApplied = useCallback(
     (p: string) => (D?.applied || []).some(a => String(a.id) === String(p)), [D]);
 
   async function removeSelected(){
-    if (!picks.length) return;
+    if (!appliedPicks.length) return;
     try {
-      const resp = await removeApplied(picks);
+      const resp = await removeApplied(appliedPicks);
       setApplied(resp.applied);
-      setPicks([]);
+      setAppliedPicks([]);
     } catch {
-      setPicks([]);       // the reload shows whatever the server actually holds
+      setAppliedPicks([]);   // the reload shows whatever the server actually holds
       void reload();
     }
   }
+
+  const chooseSize = (v: SizeChoice) => {
+    try { localStorage.setItem('jobhunt-pagesize', v); } catch { /* private mode */ }
+    setSize(v);
+  };
+
+  function onSort(k: SortKey){
+    const dir = sortKey === k ? -sortDir : (k === 'date' ? -1 : 1);
+    setSortKey(k); setSortDir(dir);
+  }
+
+  // Batch generation: one request launches every selected listing that has no brief yet and
+  // answers with what each id did. A skip is the rule, not an error -- a select-all must not
+  // spend a model call on a row the reader has already read -- but a button that quietly does
+  // nothing for six of eight rows reads as broken, so the skipped rows are named in a dialog.
+  // The dashboard is re-read at the end to pick up the runs that just started.
+  async function generateSelected(){
+    const ids = openPicks;
+    if (!ids.length || batchBusy) return;
+    const willRun = ids.length - briefedPicks;
+    if (willRun > BATCH_CONFIRM_AT && !window.confirm(
+        `Generate briefs for ${willRun} listing${willRun === 1 ? '' : 's'}? Each one is a model call.`
+        + (briefedPicks ? ` ${briefedPicks} already ha${briefedPicks === 1 ? 's' : 've'}`
+                          + ' a brief and will be skipped.' : ''))) return;
+    setBatchBusy(true);
+    setBatchNote('');
+    setBatchReport(null);
+    // Named before the request, because the reload at the end may retire the row.
+    const named = (id: string): BriefRow => {
+      const p = byId.get(id);
+      return {id, company: p?.company || '', title: p?.title || 'this listing'};
+    };
+    try {
+      const resp = await startBriefs(ids);
+      const parts = [`started ${resp.started || 0}`];
+      if (resp.skipped) parts.push(`${resp.skipped} skipped, brief already exists`);
+      if (resp.failed) parts.push(`${resp.failed} failed`);
+      setBatchNote(parts.join(' · '));
+      const withMessage = (state: string) => (resp.results || [])
+        .filter(r => r.state === state)
+        .map(r => ({...named(r.id), message: r.message || state}));
+      const skipped = withMessage('skipped');
+      const failures = withMessage('failed');
+      if (skipped.length || failures.length){
+        setBatchReport({total: ids.length, started: resp.started || 0, skipped,
+                        failed: failures});
+      }
+      setOpenPicks([]);
+    } catch (err){
+      setBatchNote('could not start: ' + ((err as Error).message || 'request failed'));
+    } finally {
+      setBatchBusy(false);
+      void reload();
+    }
+  }
+
+  // A batch leaves runs in flight, and the shortlisted stage is where they land, so the
+  // dashboard is re-read every 10s while anything is running -- bounded, like the drawer's own
+  // poll, so a marker that never clears cannot poll forever.
+  const runningBriefs = useMemo(() =>
+    (D?.shortlisted || []).filter(r => r.status === 'running').length, [D]);
+  useEffect(() => {
+    if (!runningBriefs) return;
+    let ticks = 0;
+    const timer = setInterval(() => {
+      if (++ticks > 60){ clearInterval(timer); return; }
+      void reload();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [runningBriefs, reload]);
 
   // The header outside the app root carries the last scan's date. This must stay above the
   // early returns: a hook cannot be skipped on the loading render.
@@ -233,130 +302,98 @@ function App(){
   }
   if (!D) return <main class="page"><div class="card"><p class="mut">loading…</p></div></main>;
 
+  const selAll = (rows: Row[], picks: string[], set: (v: string[]) => void) => {
+    const picked = rows.filter(r => picks.includes(r.id)).length;
+    const all = rows.length > 0 && picked === rows.length;
+    return (
+      <label class="selall">
+        <input type="checkbox" checked={all}
+               indeterminate={picked > 0 && !all}
+               onChange={e => set((e.target as HTMLInputElement).checked
+                 ? rows.map(r => r.id) : [])} />
+        Select all
+      </label>
+    );
+  };
+
+  const shared = {
+    needle, tier, onNeedle: setNeedle, onTier: setTier,
+    sortKey, sortDir, onSort, size, onSize: chooseSize, tiers: D.tiers,
+  };
+
   return <>
     <main class="page">
       <div class="card">
         <div class="viewbar">
-          <div class="seg" id="seg" role="tablist" aria-label="posting views">
-            <button type="button" role="tab" aria-selected={view === 'open'}
-                    aria-controls="openview" class={view === 'open' ? 'on' : ''}
-                    onClick={() => setView('open')}>Open <em>{counts.open}</em></button>
-            <button type="button" role="tab" aria-selected={view === 'applied'}
-                    aria-controls="appliedview" class={view === 'applied' ? 'on' : ''}
-                    onClick={() => setView('applied')}>Applied <em>{counts.applied}</em></button>
+          <div class="seg" id="seg" role="tablist" aria-label="posting stages">
+            {([['open', 'Open'], ['shortlist', 'Shortlisted'], ['applied', 'Applied']] as const)
+              .map(([id, label]) => (
+                <button key={id} type="button" role="tab" aria-selected={stage === id}
+                        aria-controls={'stage-' + id} class={stage === id ? 'on' : ''}
+                        onClick={() => setStage(id)}>
+                  {label} <em>{counts[id]}</em>
+                </button>
+              ))}
           </div>
         </div>
 
-        <section id="openview" role="tabpanel" hidden={view !== 'open'}>
-          <div class="toolbar">
-            <span class="prompt" aria-hidden="true">&gt;</span>
-            <input type="search" id="q" placeholder="Filter company or title…"
-                   aria-label="filter company or title" value={needle}
-                   onInput={e => { setNeedle((e.target as HTMLInputElement).value); setPage(1); }} />
-            <select id="locfilter" aria-label="location" value={tier}
-                    onChange={e => { setTier((e.target as HTMLSelectElement).value); setPage(1); }}>
-              <option value="">All locations</option>
-              {locationOptions.map(({t, n}) =>
-                <option value={t} key={t}>{tierLabel(t)} ({n})</option>)}
-            </select>
-          </div>
+        <StageTable id="open" label="filter open company or title" dateLabel="Posted"
+                    hidden={stage !== 'open'} rows={openHits} all={openRows} {...shared}
+                    onOpen={setPid} onPick={(id, on) => setOpenPicks(
+                      on ? openPicks.concat(id) : openPicks.filter(i => i !== id))}
+                    actions={<>
+                      {selAll(openHits, openPicks, setOpenPicks)}
+                      <button class="btn" type="button"
+                              disabled={!openPicks.length || batchBusy}
+                              onClick={generateSelected}>
+                        {batchBusy ? 'Starting…'
+                          : openPicks.length ? `Generate briefs (${openPicks.length})`
+                          : 'Generate briefs'}
+                      </button>
+                      {briefedPicks ? (
+                        <span class="batchhint" role="status"
+                              title="these already have a brief, so the button skips them">
+                          {briefedPicks} of {openPicks.length} already briefed
+                        </span>
+                      ) : null}
+                      {batchNote ? <span class="batchnote" role="status">{batchNote}</span> : null}
+                    </>}
+                    empty="Nothing open. Every posting the feed carries has a brief or is
+                           already on the applied list." />
 
-          <div class="tablewrap">
-            <table class="shortlist"><thead><tr>
-              {([['posted', 'Posted'], ['tier', 'Location'], ['company', 'Company'],
-                 ['title', 'Title']] as const).map(([k, label]) =>
-                <th key={k} class={sortKey === k ? 'sorted' : ''} tabIndex={0}
-                    aria-sort={sortKey === k ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}
-                    data-dir={sortKey === k ? (sortDir > 0 ? 'asc' : 'desc') : undefined}
-                    onClick={() => onSort(k)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' '){
-                        e.preventDefault();
-                        onSort(k);
-                      }
-                    }}>{label}</th>)}
-            </tr></thead>
-            <tbody id="rows">
-              {pageRows.map(p => <OpenRow p={p} ranAt={D.ran_at} key={p.id} open={setPid} />)}
-            </tbody></table>
-            {hits.length ? null : <div class="none" id="empty">No rows match</div>}
-          </div>
+        <StageTable id="shortlist" label="filter shortlisted company or title"
+                    dateLabel="Posted" hidden={stage !== 'shortlist'}
+                    rows={shortlistHits} all={shortlistRows} {...shared} onOpen={setPid}
+                    info={<span class="pginfo">
+                      {shortlistRows.length ? `${shortlistRows.length} with a brief` : ''}
+                    </span>}
+                    empty="No briefs yet. Select listings in Open and press Generate briefs —
+                           each one lands here, and the applied stage takes it from there when
+                           you apply." />
 
-          <div class="pager" id="pager" style={{display: hits.length ? 'flex' : 'none'}}>
-            <span class="pginfo" id="pginfo">
-              {hits.length ? `showing ${start + 1}\u2013${Math.min(start + pageSize, hits.length)} of ${hits.length}` : ''}
-            </span>
-            <span class="pgspacer" />
-            <label class="pgsize">rows <select id="pgsize" value={sizeChoice}
-                onChange={e => chooseSize((e.target as HTMLSelectElement).value)}>
-              <option value="fit">Fit</option><option value="10">10</option>
-              <option value="25">25</option><option value="50">50</option>
-            </select></label>
-            <button class="pg" id="pgprev" type="button" aria-label="previous page"
-                    disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>&lsaquo;</button>
-            <span class="pgnum" id="pgnum">
-              {hits.length ? `page ${safePage} / ${pages}` : ''}</span>
-            <button class="pg" id="pgnext" type="button" aria-label="next page"
-                    disabled={safePage >= pages} onClick={() => setPage(safePage + 1)}>&rsaquo;</button>
-          </div>
-        </section>
-
-        <section id="appliedview" role="tabpanel" hidden={view !== 'applied'}>
-          <div class="toolbar appliedbar">
-            <label class="selall">
-              <input type="checkbox" id="selall"
-                     checked={picks.length > 0 && picks.length === (D.applied || []).length}
-                     indeterminate={picks.length > 0 && picks.length < (D.applied || []).length}
-                     onChange={e => {
-                       const on = (e.target as HTMLInputElement).checked;
-                       setPicks(on ? (D.applied || []).map(a => a.id) : []);
-                     }} />
-              Select all
-            </label>
-            <span class="pgspacer" />
-            <button class="btn" id="removeSel" type="button" disabled={!picks.length}
-                    onClick={removeSelected}>
-              {picks.length ? `Remove ${picks.length} selected` : 'Remove selected'}
-            </button>
-          </div>
-          <div class="tablewrap">
-            <table class="shortlist applied"><thead><tr>
-              <th class="chk" /><th>Applied</th><th>Company</th><th>Title</th><th>Location</th>
-            </tr></thead>
-            <tbody id="appliedrows">
-              {(D.applied || []).map(a => (
-                <tr key={a.id}>
-                  <td class="chk">
-                    <input type="checkbox" class="aplpick"
-                           checked={picks.includes(a.id)}
-                           aria-label={`select ${a.company || ''} ${a.title || '(untitled)'}`}
-                           onChange={e => {
-                             const on = (e.target as HTMLInputElement).checked;
-                             setPicks(on ? picks.concat(a.id)
-                                         : picks.filter(i => i !== a.id));
-                           }} />
-                  </td>
-                  <td class="posted">{a.applied_at
-                    ? a.applied_at.slice(0, 10) : <span class="mut">—</span>}</td>
-                  <td class="co">{a.company || ''}</td>
-                  <td class="title">{webUrl(a.url)
-                    ? <a href={webUrl(a.url)} target="_blank" rel="noreferrer">
-                        {a.title || '(untitled)'} ↗</a>
-                    : (a.title || '(untitled)')}</td>
-                  <td>{a.tier
-                    ? <span class={'tier tag tier-' + a.tier} title={a.location || ''}>
-                        <i />{tierLabel(a.tier)}</span>
-                    : <span class="mut">{a.location || '—'}</span>}</td>
-                </tr>
-              ))}
-            </tbody></table>
-            {(D.applied || []).length ? null :
-              <div class="none" id="appliedempty">Nothing applied to yet. Open a posting and
-                click its apply link — it moves here.</div>}
-          </div>
-        </section>
+        <StageTable id="applied" label="filter applied company or title" dateLabel="Applied"
+                    hidden={stage !== 'applied'} rows={appliedHits} all={appliedRows}
+                    {...shared}
+                    onPick={(id, on) => setAppliedPicks(
+                      on ? appliedPicks.concat(id) : appliedPicks.filter(i => i !== id))}
+                    actions={<>
+                      {selAll(appliedHits, appliedPicks, setAppliedPicks)}
+                      <button class="btn" type="button" disabled={!appliedPicks.length}
+                              onClick={removeSelected}>
+                        {appliedPicks.length ? `Remove ${appliedPicks.length} selected`
+                          : 'Remove selected'}
+                      </button>
+                    </>}
+                    empty="Nothing applied to yet. Open a posting and click its apply link — it
+                           moves here." />
       </div>
     </main>
+
+    {batchReport ? (
+      <BatchDialog report={batchReport}
+                   close={() => setBatchReport(null)}
+                   shortlist={() => { setBatchReport(null); setStage('shortlist'); }} />
+    ) : null}
 
     <div id="scrim" class={pid ? 'on' : ''} aria-hidden="true" onClick={() => setPid(null)} />
     <Drawer pid={pid} ranAt={D.ran_at} isApplied={drawerIsApplied} setApplied={setApplied}
@@ -364,35 +401,76 @@ function App(){
   </>;
 }
 
-// One open-list row. Reuses the classes of the retired markup so styles.css is untouched.
-function OpenRow(props: {p: Posting; ranAt?: string; open: (pid: string) => void}){
-  const p = props.p;
-  const age = (p.age_days === null || p.age_days === undefined) ? '' : String(p.age_days) + 'd';
-  const po = postedOf(p, props.ranAt);
-  const tier = p.tier || '';
+// The batch dialog. It exists for one case: the reader picked a selection and some of it was
+// skipped because those briefs are already generated. That is correct behaviour, so the tone
+// is information rather than error, and the dialog offers the one place the existing briefs
+// can be read instead of leaving the reader to work out why the count came back short.
+function BatchDialog(props: {report: BatchReport; close: () => void; shortlist: () => void}){
+  const {report} = props;
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  // Focus lands on Close, not on the Jump button: Escape and Enter must both dismiss, and a
+  // reflex Enter must never navigate away from the table.
+  useEffect(() => { closeBtn.current?.focus(); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') props.close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [props.close]);
+
+  const many = (n: number) => n === 1 ? '' : 's';
+  const heading = report.started
+    ? `Started ${report.started} of ${report.total} brief${many(report.total)}`
+    : 'No briefs started';
+  const lede = [
+    report.skipped.length
+      ? `${report.skipped.length} already ha${report.skipped.length === 1 ? 's' : 've'} a brief,`
+        + ' so no model call was spent on ' + (report.skipped.length === 1 ? 'it' : 'them') + '.'
+      : '',
+    report.failed.length ? `${report.failed.length} could not be started.` : '',
+  ].filter(Boolean).join(' ');
+
+  const rows = (items: BriefRow[]) => (
+    <ul class="modallist">
+      {items.map(r => (
+        <li key={r.id}>
+          <span class="mco" title={r.company}>{r.company || '—'}</span>
+          <span class="mti" title={r.title}>{r.title}</span>
+          <span class="mmsg">{r.message}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <tr class="clickable" data-id={p.id} data-tier={tier} tabIndex={0}
-        onClick={() => props.open(p.id)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' '){
-            e.preventDefault();
-            props.open(p.id);
-          }
-        }}>
-      <td class="posted">
-        {po.date ? (po.derived
-          ? <span class="derived" title="derived from age">{po.date}</span>
-          : <span>{po.date}</span>)
-        : <span class="mut">—</span>}
-        {age ? <span class="age">{age}</span> : null}
-        {p.expires_in_days != null && p.expires_in_days <= 2
-          ? <span class="closing">{p.expires_in_days}d left</span> : null}
-      </td>
-      <td><span class={'tier tag tier-' + tier} title={p.location || ''}>
-        <i />{tierLabel(tier)}</span></td>
-      <td class="co" title={p.company}>{p.company}</td>
-      <td class="title" title={p.title}>{p.title}</td>
-    </tr>
+    <div class="modalwrap" onClick={props.close}>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="batchdlgtitle"
+           onClick={e => e.stopPropagation()}>
+        <h3 id="batchdlgtitle">{heading}</h3>
+        {lede ? <p class="modalsub">{lede}</p> : null}
+        {report.skipped.length ? (
+          <section class="modalblock">
+            <h4>Already has a brief</h4>
+            {rows(report.skipped)}
+          </section>
+        ) : null}
+        {report.failed.length ? (
+          <section class="modalblock">
+            <h4>Could not start</h4>
+            {rows(report.failed)}
+          </section>
+        ) : null}
+        <div class="modalact">
+          {report.skipped.length ? (
+            <button class="btn" type="button" onClick={props.shortlist}>
+              Show them in Shortlisted
+            </button>
+          ) : null}
+          <button class="btn ghost" type="button" ref={closeBtn} onClick={props.close}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
