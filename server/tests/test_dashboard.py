@@ -196,6 +196,118 @@ def main():
             status, _, _ = request("/api/applied/remove", method="POST", body="{}")
             ok("removal without ids 400s", status == 400, status)
 
+        # --- the shortlisted view and the batch route ------------------------
+        # The three-tab page reads `shortlisted` off the dashboard and starts briefs in bulk.
+        # Both brief functions are patched: an unpatched route would launch a real generator,
+        # and a test must never spend a model call or write a brief into the real cache.
+        _, _, body = request("/api/dashboard")
+        dash = json.loads(body)
+        ok("/api/dashboard carries 'shortlisted'", "shortlisted" in dash)
+        ok("/api/dashboard shortlisted is a list",
+           isinstance(dash.get("shortlisted"), list))
+
+        # --- the pipeline: a brief moves a row on, applying moves it out -------
+        # The three tabs are stages, not views of one list. A row with a brief is shortlisted and
+        # not open; an applied row is on the applied list and nowhere else. Each of these is one
+        # set intersection, and getting it wrong shows the same posting in two tabs.
+        open_ids = {str(p.get("id")) for p in dash.get("postings") or []}
+        short_ids = {str(r.get("id")) for r in dash.get("shortlisted") or []}
+        applied_ids = {str(a.get("id")) for a in dash.get("applied") or []}
+        ok("a shortlisted posting is not also open", not (open_ids & short_ids),
+           sorted(open_ids & short_ids)[:3])
+        ok("an applied posting is not shortlisted", not (applied_ids & short_ids),
+           sorted(applied_ids & short_ids)[:3])
+        ok("an applied posting is not open", not (applied_ids & open_ids),
+           sorted(applied_ids & open_ids)[:3])
+
+        # Every posting the board still carries has a deadline: the scan retires a row
+        # max_age_days after its publish date, so `expires_on` and the days left are part of the
+        # payload for all three tabs, recomputed per request rather than left at write time.
+        live_rows = (list(dash.get("postings") or [])
+                     + [r for r in dash.get("shortlisted") or [] if r.get("live")])
+        ok("every live posting carries an expiry date",
+           live_rows and all(r.get("expires_on") for r in live_rows),
+           [r.get("id") for r in live_rows if not r.get("expires_on")][:3])
+        ok("every live posting carries the days left",
+           live_rows and all(isinstance(r.get("expires_in_days"), int) for r in live_rows),
+           [r.get("id") for r in live_rows if not isinstance(r.get("expires_in_days"), int)][:3])
+        ok("an applied posting carries an expiry date",
+           all(a.get("expires_on") for a in dash.get("applied") or []),
+           [a.get("id") for a in dash.get("applied") or [] if not a.get("expires_on")][:3])
+        ok("the health page's live count is every feed row, not the open tab",
+           isinstance(dash.get("matched"), int) and dash["matched"] >= len(open_ids),
+           (dash.get("matched"), len(open_ids)))
+
+        import server.api.app as app_mod
+        from server.config import BRIEFS
+        launched = []
+
+        def fake_brief_for(pid):
+            briefed = str(pid) == "feedfeedfeedfeed"
+            return {"brief": {"status": "ok"} if briefed else None, "running": False,
+                    "started_at": None, "stale": False}
+
+        def fake_start_brief(pid):
+            if str(pid) == "cafecafecafecafe":
+                return True, "already running"     # refused, exactly as the real one does
+            launched.append(str(pid))
+            return True, "started"
+
+        # The two refusals come before any id is looked at, so they need no patches: no ids,
+        # and over the cap, which exists so one press cannot launch a hundred model calls.
+        status, _, body = request("/api/brief/batch", method="POST", body="{}")
+        ok("batch with no ids 400s", status == 400, status)
+        status, _, body = request("/api/brief/batch", method="POST",
+                                  body=json.dumps({"ids": ["a" * 12] * 101}))
+        ok("batch over 100 ids 400s", status == 400, status)
+        ok("the oversized batch names the cap", b"100" in body, body[:120])
+
+        # An unknown id, unpatched: the real `start_brief` refuses it rather than launching a
+        # generator that would look the posting up, find nothing and write a failure. The
+        # route therefore answers `failed`, and nothing is written for it.
+        status, _, body = request("/api/brief/batch", method="POST",
+                                  body=json.dumps({"ids": ["deadbeefdeadbeef"]}))
+        ok("batch answers 200 for an unknown id", status == 200, status)
+        got = json.loads(body)
+        first = (got.get("results") or [{}])[0]
+        ok("an unknown id is reported failed, not started",
+           first.get("state") == "failed", body[:200])
+        ok("the unknown id says why", "feed" in str(first.get("message")), first)
+        ok("no run is marked for the unknown id",
+           not os.path.exists(os.path.join(BRIEFS, "deadbeefdeadbeef.running")))
+
+        with mock.patch.object(app_mod, "brief_for", fake_brief_for), \
+             mock.patch.object(app_mod, "start_brief", fake_start_brief):
+            status, _, body = request("/api/brief/batch", method="POST",
+                                      body=json.dumps({"ids": ["bad!id"]}))
+            ok("a malformed id is reported failed",
+               (json.loads(body).get("results") or [{}])[0].get("state") == "failed", body[:160])
+
+            # The rule the button leans on: an id whose cached brief is `ok` is skipped, so a
+            # select-all cannot spend a model call on a row the reader has already read. A
+            # run already in flight is reported as skipped too, with its own message, which
+            # is what the dialog shows beside the row.
+            status, _, body = request("/api/brief/batch", method="POST",
+                                      body=json.dumps({"ids": ["feedfeedfeedfeed",
+                                                               "cafecafecafecafe",
+                                                               "beefbeefbeefbeef"]}))
+            ok("batch answers 200 for a mixed selection", status == 200, status)
+            got = json.loads(body)
+            rows = {str(r.get("id")): r for r in got.get("results") or []}
+            ok("an id with an ok brief is skipped",
+               rows.get("feedfeedfeedfeed", {}).get("state") == "skipped", rows)
+            ok("the skip says the brief already exists",
+               "already has a brief" in str(rows.get("feedfeedfeedfeed", {}).get("message")),
+               rows.get("feedfeedfeedfeed"))
+            ok("an id already running is skipped, not launched twice",
+               rows.get("cafecafecafecafe", {}).get("state") == "skipped", rows)
+            ok("an id with no brief is started",
+               rows.get("beefbeefbeefbeef", {}).get("state") == "started", rows)
+            ok("only the un-briefed id launches", launched == ["beefbeefbeefbeef"], launched)
+            ok("the batch counts what it did",
+               (got.get("started"), got.get("skipped"), got.get("failed")) == (1, 2, 0),
+               {k: got.get(k) for k in ("started", "skipped", "failed")})
+
         # --- the static handler cannot escape client/ -----------------------
         for path in ("/../server/api/app.py", "/%2e%2e%2fserver/api/app.py",
                      "/dist/../../server/api/app.py"):

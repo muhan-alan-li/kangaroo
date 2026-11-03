@@ -10,7 +10,7 @@ posting that reads fresher than it is, a backoff that never expires.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import os
 import shutil
@@ -231,6 +231,57 @@ check("a cache past max_cache_age_hours is refused", stale, None)
 check("a refused cache still reports its age", round(age), 48)
 missing, age = boardstate.read_sweep(30, path=os.path.join(TMP, "nope.json"))
 check("a missing cache is refused, not an error", (missing, age), (None, None))
+
+# ---- expiry: every posting dies max_age_days after it was published -----------------
+# The dashboard no longer draws a deadline column, so this is the only thing keeping the
+# promise that a posting does expire: the date is computed here, and refresh() retires the row
+# on it. A row that never retires would sit on the board forever and read as fresh.
+from unittest import mock  # noqa: E402
+from scan import portal  # noqa: E402
+
+RAN = "2026-11-03T09:00:00+00:00"
+check("expiry counts from the publish date",
+      portal.expires_on({"posted": "2026-10-31"}, 7, RAN), ("2026-11-07", "posted"))
+check("a derived publish date is used when the source has no publish field",
+      portal.expires_on({"posted_derived": "2026-11-01"}, 7, RAN), ("2026-11-08", "posted"))
+check("an undated posting counts from the day it was first seen",
+      portal.expires_on({"first_seen": "2026-10-28T09:00:00+00:00"}, 7, RAN),
+      ("2026-11-04", "first_seen"))
+check("a row with no clock at all is undated", portal.expires_on({}, 7, "")[0], None)
+check("the expiry date is the last day it is listed",
+      portal._is_expired({"posted": "2026-10-31"}, date(2026, 11, 7), 7)[0], True)
+check("the day before it is still listed",
+      portal._is_expired({"posted": "2026-10-31"}, date(2026, 11, 6), 7)[0], False)
+
+with tempfile.TemporaryDirectory(prefix="expiry-test-") as state_dir, \
+     mock.patch.object(portal, "FEED_PATH", os.path.join(state_dir, "feed.jsonl")), \
+     mock.patch.object(portal, "EXPIRED_PATH", os.path.join(state_dir, "expired.json")), \
+     mock.patch.object(portal, "DESC_PATH", os.path.join(state_dir, "desc.json")):
+    old = {"id": "old1", "company": "Acme", "title": "Junior Developer",
+           "url": "https://example.test/1", "tier": "vancouver", "posted": "2026-10-20",
+           "description": "text", "age_days": 1}
+    first = portal.refresh([dict(old)], filters={"max_age_days": 7},
+                           ran_at="2026-10-21T09:00:00+00:00", desc_budget=0)
+    check("a posting inside the window is kept", first["live"], 1)
+    check("its expiry is published plus the window",
+          portal.read_feed()["old1"]["expires_on"], "2026-10-27")
+
+    # A week later the scan runs and does not return it. The carried row must still be retired,
+    # which is what stops the board from filling with postings no source will ever mention again.
+    later = portal.refresh([], filters={"max_age_days": 7},
+                           ran_at="2026-10-29T09:00:00+00:00", desc_budget=0)
+    check("a posting past the window is retired", later["retired_now"], 1)
+    check("it leaves the feed", later["live"], 0)
+    check("it is not in the feed file either", list(portal.read_feed()), [])
+    expired = portal.load_expired()
+    check("the registry records it", sorted(expired), ["old1"])
+    check("the registry keeps the date it died on", expired["old1"]["expires_on"], "2026-10-27")
+
+    # A feed that hands the same id over again must not resurrect it: a real re-post arrives
+    # under a new id, so the same id coming back means the source is repeating itself.
+    again = portal.refresh([dict(old)], filters={"max_age_days": 7},
+                           ran_at="2026-10-30T09:00:00+00:00", desc_budget=0)
+    check("an expired id does not come back", again["live"], 0)
 
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"\n{checks} checks, {len(failures)} mismatches")

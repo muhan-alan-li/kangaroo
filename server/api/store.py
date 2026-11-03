@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import date
 
 from ..config import (DESC, EXPIRED, FEED, HEALTH, SCAN, SWEEP, tier_order, window_days)
 from . import triage
@@ -103,6 +104,24 @@ def description_for(pid, row=None):
     return ""
 
 
+def _expiry(row):
+    """(the date a row dies on, days left) recomputed against today.
+
+    The feed stores its own `expires_in_days`, but that number was computed at scan time: an
+    applied snapshot from a week ago would claim days it no longer has, and a shortlisted row
+    carried past the window would look alive. Every list therefore refreshes from
+    `expires_on`, so the same posting shows the same deadline in all three tabs. A posting the
+    feed expired keeps the date it died on, which is what makes its row say "expired".
+    """
+    end = str(row.get("expires_on") or "")[:10]
+    if not end:
+        return None, row.get("expires_in_days")
+    try:
+        return end, (date.fromisoformat(end) - date.today()).days
+    except ValueError:
+        return end, row.get("expires_in_days")
+
+
 def collect():
     """Everything the page shows, assembled per request."""
     allowed = set(tier_order())
@@ -122,6 +141,9 @@ def collect():
     postings.sort(key=lambda p: (order.get(p.get("tier") or "", 99),
                                  -int(p.get("score") or 0),
                                  p.get("age_days") if p.get("age_days") is not None else 999))
+    # `matched` is the scan's number for the health page, so it counts every live row rather
+    # than the open table, which the reader empties by generating briefs and applying.
+    matched = len(postings)
 
     secs = scan.get("source_seconds") or {}
 
@@ -129,12 +151,73 @@ def collect():
     # and an application outlives it. Where the posting is still live, the live row supplies the
     # fields a scan can refresh (title, location) and the snapshot supplies `applied_at`.
     live_ids = {str(p.get("id")): p for p in postings}
-    applied = []
+    applied, applied_ids = [], set()
     for snap in triage.rows():
         live = live_ids.get(str(snap.get("id")))
         row = dict(live) if live else dict(snap)
         row["applied_at"] = snap.get("applied_at")
+        row["expires_on"], row["expires_in_days"] = _expiry(row)
+        applied_ids.add(str(row.get("id")))
         applied.append(row)
+
+    # The shortlisted view: every posting with a brief, whether or not the feed still carries
+    # the row. The brief is a durable artifact like the applied snapshot, so a retired
+    # posting keeps its row -- marked `live: false`, which is what tells the page it can no
+    # longer be opened in the drawer and may only be linked out. In-flight runs are listed
+    # too, because a batch of them is exactly what the reader is watching.
+    #
+    # An applied posting is not shortlisted any more: applying is a decision, a brief is only a
+    # read, so the row moves on to the applied tab and out of the pipeline.
+    # The import is local: briefs.py reads this module, so the two cannot import at the top.
+    from .briefs import brief_index
+    shortlisted, briefed = [], {}
+    for pid, entry in brief_index().items():
+        status = "running" if entry.get("running") else (entry.get("status") or "")
+        if not status:
+            continue
+        live = live_ids.get(str(pid))
+        if live:
+            briefed[str(pid)] = status
+        if str(pid) in applied_ids:
+            continue
+        row = {"id": str(pid), "live": bool(live), "status": status,
+               "generated_at": entry.get("generated_at"),
+               "title": (live or {}).get("title") or entry.get("title") or "",
+               "company": (live or {}).get("company") or entry.get("company") or "",
+               "url": (live or {}).get("url") or entry.get("url") or "",
+               "location": (live or {}).get("location") or "",
+               "tier": (live or {}).get("tier") or ""}
+        if live:
+            for key in ("posted", "posted_derived", "scanned_at", "age_days"):
+                if live.get(key) is not None:
+                    row[key] = live.get(key)
+            row["expires_on"] = live.get("expires_on")
+        else:
+            # The feed has retired it, so the expiry it was retired on is the honest date: an
+            # expired row says when it died rather than showing nothing at all.
+            row["expires_on"] = (expired.get(str(pid)) or {}).get("expires_on")
+        row["expires_on"], row["expires_in_days"] = _expiry(row)
+        shortlisted.append(row)
+    # Newest brief first, with the runs still in flight ahead of the finished ones: the
+    # shortlisted tab is the progress view while a batch is generating.
+    shortlisted.sort(key=lambda r: (r.get("status") == "running",
+                                    r.get("generated_at") or ""), reverse=True)
+
+    # The pipeline (2026-11-03): a brief moves a posting out of Open and into Shortlisted. Any
+    # status that has something to read -- `ok`, or a run in flight -- moves it; a `failed`
+    # brief leaves the row where it is, because there is nothing to read yet and the next
+    # Generate briefs press retries it. Applying removes a row from every list but Applied.
+    # A row that already has a brief still says so on its way out, so a stale page's batch
+    # press reports the skip instead of spending the model call.
+    for p in postings:
+        status = briefed.get(str(p.get("id")))
+        if status:
+            p["brief_status"] = status
+        p["expires_on"], p["expires_in_days"] = _expiry(p)
+    moved = {pid for pid, status in briefed.items() if status in ("ok", "running")}
+    postings = [p for p in postings
+                if str(p.get("id")) not in applied_ids
+                and str(p.get("id")) not in moved]
 
     return {
         "ran_at": scan.get("ran_at"),
@@ -142,7 +225,7 @@ def collect():
         "window": window_days(),
         "expired_total": len(expired),
         "collected": sum((scan.get("sources") or {}).values()),
-        "matched": len(postings),
+        "matched": matched,
         "with_email": sum(1 for p in postings if p.get("emails") or p.get("verified_emails")),
         "with_keywords": sum(1 for p in postings if p.get("keywords")),
         "with_text": sum(1 for p in postings if p.get("has_text")),
@@ -153,6 +236,7 @@ def collect():
         "dropped": scan.get("dropped") or {},
         "postings": postings,
         "applied": applied,
+        "shortlisted": shortlisted,
         "boards_total": len(boards),
         "boards_ok": len(boards) - len(failing),
         "boards_failing": len(failing),
