@@ -25,9 +25,17 @@ Owner: Muhan Li.
 4. **Tailor on demand** — opening a posting and pressing **Generate brief** runs a three-stage
    DeepSeek chain that extracts the posting's requirements, matches them against the resume with
    verbatim evidence, and proposes resume edits. A code-level validator drops any edit whose
-   `before` is not actually in the resume.
+   `before` is not actually in the resume. The Open table takes a selection, so a batch of briefs
+   is one press.
 5. **Track applied** — clicking **Apply** opens the posting in a new tab and snapshots it into
    `data/state/applied.json`. That list is a read-side record, not an application ledger.
+
+The three tabs are the pipeline, not three views of one list: a posting with a brief leaves
+**Open** for **Shortlisted**, and applying moves it on to **Applied**. The stage is the first
+filter level and the tab bar is its control; inside a stage, a location bucket and a needle are
+the second. One table component (`client/src/table.tsx`) draws all three, and measures the rows
+that fit from its own layout. A posting is retired `max_age_days` after it was published — that
+happens in the scan, not on the page.
 
 Outreach is complete and no messages are drafted or sent by this workspace.
 
@@ -105,10 +113,11 @@ make timer        # show the next scheduled scan slots
 
 ```
 client/                  Dashboard web client (Preact + TypeScript, built by Vite)
-  src/                   postings.tsx, health.tsx, detail.tsx, detailParts.tsx,
+  src/                   postings.tsx (the page + pipeline), table.tsx (the one table all
+                         three stages draw), health.tsx, detail.tsx, detailParts.tsx,
                          api.ts, lib.ts, types.ts
   dist/                  Built entry bundles (committed; the server box has no Node)
-  index.html             Postings table, with Open / Applied switch
+  index.html             Postings table: Open / Shortlisted / Applied tabs
   health.html            Scan cost and Workday board health
   styles.css             Handwritten "Lilac" theme, untouched by the build
 
@@ -174,9 +183,15 @@ browser ──► tailscale serve ──► server/api/app.py ──► data/sta
 - `GET /api/dashboard` — everything the postings page shows.
 - `GET /api/posting/<id>` — one posting, its cached description, and its brief state.
 - `POST /api/brief/<id>` — start a brief generation.
+- `POST /api/brief/batch` — start a selection in one request; ids that already have a brief are
+  skipped and reported per id.
 - `POST /api/deep-contacts/<id>` — start the deep contact search.
 - `POST /api/applied/<id>` — snapshot a posting into the applied list.
 - `POST /api/applied/remove` — remove a selection, one write for the batch.
+
+`GET /api/dashboard` answers the pipeline: `postings` (open), `shortlisted` and `applied` are
+three disjoint lists, and every row carries `expires_on` + `expires_in_days` — the deadline the
+scan enforces, whether or not a client draws it.
 
 The API process never fetches a page and never calls a model. It reads files and launches
 detached generator processes.
@@ -417,7 +432,9 @@ The project follows a few rules so the pieces stay independent:
 - **iCIMS needs browser impersonation.** It runs under `.venv-icims` with `curl_cffi`; without
   that venv the source is skipped rather than failing the scan.
 - **The brief launcher is a separate process.** `POST /api/brief/<id>` answers immediately; the
-  page polls. Do not expect a brief in the POST response.
+  page polls. Do not expect a brief in the POST response. The batch route behaves the same way
+  and answers only what it did: `started`, `skipped` (a brief already exists — the client says
+  which rows) or `failed`.
 
 ---
 

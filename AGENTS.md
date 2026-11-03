@@ -25,22 +25,53 @@ what the files are, how a day runs, and the rules that always apply.
                                      entrypoint-retry.sh (retry, then prune after a clean run).
     client/                          The dashboard's web client, served by the server/ package. React-style
                                      components in Preact + TypeScript, built by Vite: client/src/ holds the
-                                     sources (postings.tsx, health.tsx, detail.tsx, api.ts, lib.ts, types.ts,
-                                     detailParts.tsx) and `npm run build` (run inside client/, and it
+                                     sources (postings.tsx -- the page and the pipeline; table.tsx -- the
+                                     one table all three stages draw; health.tsx, detail.tsx, api.ts,
+                                     lib.ts, types.ts, detailParts.tsx) and `npm run build` (run inside
+                                     client/, and it
                                      typechecks first) writes the two fixed-name entry bundles to
                                      client/dist/ -- postings.js and health.js, which the two HTML
                                      shells reference -- plus a content-hashed Preact runtime chunk.
                                      The `?v=` on the entry scripts is bumped by `server bump --bump`
                                      so a browser cannot pin an old entry after a rebuild.
-                                     index.html (the postings table, with an Open / Applied switch)
-                                     and health.html (scan cost and Workday board health) share
-                                     styles.css -- the "Lilac" theme, a mix of Ant Design
+                                     index.html (the postings table: Open, Shortlisted and
+                                     Applied tabs) and health.html (scan cost and Workday board
+                                     health) share styles.css -- the "Lilac" theme, a mix of Ant Design
                                      primitives, Apple softness and terminal chrome -- and styles.css is
                                      handwritten, untouched by the build. The detail drawer has Summary /
                                      Résumé / Contact tabs; contact research and resumé-tailoring advice
                                      live in the latter two. A posting's Apply button opens the posting in
                                      a new tab and moves it to Applied, where rows can be selected in bulk
-                                     and removed. dist/ and package-lock.json are committed so the server
+                                     and removed. The three tabs are stages, not views of one list
+                                     (2026-11-03): a posting with a brief leaves Open for
+                                     Shortlisted, and applying moves it on to Applied, so no row is
+                                     ever in two tabs. A failed brief leaves its row in Open --
+                                     there is nothing to read yet and the next press retries it.
+                                     One table draws all three stages (`client/src/table.tsx`): the
+                                     same four columns (date, location, company, title), the same
+                                     widths and row height, the same two filter levels. The stage
+                                     -- Open / Shortlisted / Applied -- IS the first filter level and
+                                     the tab bar is its control; the location bucket and the
+                                     needle are the second, and they carry across a stage switch
+                                     because it is one table. Each stage normalizes its payload
+                                     into the same `Row` and the module owns filtering, sorting,
+                                     paging and the measurement. `rowsThatFit()` measures each
+                                     table from its OWN toolbar, head and pager: an earlier
+                                     version measured the open table and reused the number, which
+                                     is why the shortlisted tab drew the wrong number of rows.
+                                     Nothing is drawn about a brief or a deadline: a row
+                                     in Shortlisted is the record that a brief exists, and the
+                                     deadline lives in the payload (`expires_on`, recomputed per
+                                     request) because the scan, not the page, is what expires a
+                                     posting. Open rows carry a checkbox, so a selection becomes a batch of
+                                     briefs in one press; an open row that still has a brief on
+                                     it (a retryable failure, or a run another tab started) says
+                                     so before the press (a `briefed` chip beside the title, plus
+                                     a "N of M already briefed" count at the button), and the
+                                     batch dialog names the rows it skipped afterwards. The
+                                     Shortlisted tab lists every posting with a brief, the runs in
+                                     flight first, including rows the feed has retired.
+                                     dist/ and package-lock.json are committed so the server
                                      box needs no node; client/node_modules/ is not.
     server/                          The server package: the dashboard API, the scan engine and the
                                      brief engine, behind one entry point (`python3 -m server
@@ -241,11 +272,17 @@ serves `client/` and the API together on the Tailscale address and loopback, exa
 The page itself lives in `client/`, built by Vite from Preact + TypeScript sources in
 `client/src/` and served from `client/dist/`; the two HTML shells and `styles.css` are
 handwritten. `server/api/app.py` answers the JSON the client calls -- `GET /api/dashboard`
-(everything the page shows), `GET /api/posting/<id>` (one posting's detail), and the two routes that
-write: `POST /api/brief/<id>` (starts `server/brief/generate.py`: the default `chain.py` runs
+(everything the page shows: the `open` list, the `applied` list and the `shortlisted` list, each
+row carrying `expires_on`/`expires_in_days` recomputed for today even though the page draws no
+deadline, plus each open row's `brief_status`), `GET /api/posting/<id>` (one posting's detail), and the routes that write:
+`POST /api/brief/<id>` (starts `server/brief/generate.py`: the default `chain.py` runs
 `stages.py` -- requirements, evidence match, edits -- with `validate.py` dropping a `before` that
 is not verbatim in the resume; the default brief carries no contacts),
-`POST /api/deep-contacts/<id>` (the same entry point with `--deep-contacts`: the Hermes agent's
+`POST /api/brief/batch` with `{"ids": [...]}` (the same launch, one per id, answering
+`{results, started, skipped, failed}` per id; at most 100 ids; an id whose cached brief is `ok`
+-- or whose run is already in flight -- is **skipped**, not launched again, so a select-all cannot
+spend a model call on a row the reader has already read; the client turns the skipped ids into a
+dialog naming them), `POST /api/deep-contacts/<id>` (the same entry point with `--deep-contacts`: the Hermes agent's
 second-level contact search in `contacts.py`, merged into the existing brief -- contact search is
 on demand only, every attempt having proven ineffective), and the applied list's two routes:
 `POST /api/applied/<id>` (snapshot the posting as applied; the detail drawer's Apply button opens
@@ -255,7 +292,18 @@ repaints the two tables from the response instead of re-reading the 183 KB dashb
 a read-side record, not the retired application ledger -- it
 submits nothing. `server/api/triage.py` owns `data/state/applied.json` (a snapshot per posting, so
 the applied list survives the feed retiring the row), `server/tests/test_dashboard.py` pins the
-routes and the static path check.
+routes, the three-stage pipeline and the static path check.
+
+**The inbox is a pipeline (2026-11-03).** `server/api/store.py: collect()` builds the three lists
+as stages rather than as views of one set: `postings` is the feed minus every posting with a
+brief that has something to read (`ok`, or a run in flight) and minus everything applied;
+`shortlisted` is every brief minus the applied ones; `applied` is the snapshot list. A `failed`
+brief deliberately stays in Open, because there is nothing to read yet and the next batch press
+retries it. `matched` still counts every live feed row, so the health page's "live postings"
+number does not fall as the reader works through the list. Expiry is not a page concern: the
+scan retires a row `max_age_days` after its publish date (`server/scan/portal.py: expires_on`),
+records it in `portal_expired.json`, and refuses to resurrect an id that has expired;
+`server/tests/test_boardstate.py` pins that end to end.
 
 The server's modules are split by what they touch: `server/config.py` (paths, tiers, MIME),
 `server/api/store.py` (reading `data/state/`), `server/api/triage.py` (the applied list),
