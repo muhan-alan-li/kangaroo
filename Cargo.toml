@@ -1,6 +1,10 @@
 [workspace]
-members = ["crates/jh-core", "crates/jh-db", "crates/jh-cli"]
-resolver = "2"
+resolver = "3"
+members = ["crates/jh-core", "crates/jh-db", "crates/jh-cli", "crates/jh-spike"]
+
+[workspace.package]
+edition = "2024"
+publish = false
 
 [workspace.dependencies]
 anyhow = "1"
