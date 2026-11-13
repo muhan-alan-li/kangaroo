@@ -1,0 +1,95 @@
+{
+  "cap_dropped": 0,
+  "cap_ids": [
+    "d004bf59adf0ab8d",
+    "48f5088c2abb1cd7"
+  ],
+  "dropped": {
+    "excluded:senior": 1
+  },
+  "expected": [
+    {
+      "id": "d004bf59adf0ab8d",
+      "score": 90,
+      "tier": "vancouver",
+      "tier_rank": 0
+    },
+    {
+      "id": "48f5088c2abb1cd7",
+      "score": 52,
+      "tier": "toronto",
+      "tier_rank": 2
+    }
+  ],
+  "kept_ids": [
+    "d004bf59adf0ab8d",
+    "48f5088c2abb1cd7"
+  ],
+  "postings": [
+    {
+      "age_days": 0,
+      "ats": "lever",
+      "company": "Acme",
+      "id": "d004bf59adf0ab8d",
+      "location": "Vancouver, BC, Canada",
+      "location_kind": "local",
+      "posted": "2026-11-13",
+      "raw_id": "a",
+      "salary": "$90,000 annually",
+      "salary_annual_max": 90000,
+      "salary_annual_min": 90000,
+      "salary_estimated": false,
+      "score": 90,
+      "source": "ats",
+      "tier": "vancouver",
+      "tier_label": "new grad Vancouver / Metro",
+      "tier_rank": 0,
+      "title": "Junior Software Engineer",
+      "url": "https://jobs.lever.co/acme/0123456789abcdef"
+    },
+    {
+      "age_days": 1,
+      "ats": null,
+      "below_comp_floor": true,
+      "company": "Local Co",
+      "id": "48f5088c2abb1cd7",
+      "location": "Toronto, ON",
+      "location_kind": "local",
+      "posted": "2026-11-12",
+      "raw_id": "b",
+      "salary": "$35 hourly",
+      "salary_annual_max": 70000,
+      "salary_annual_min": 70000,
+      "salary_estimated": true,
+      "score": 52,
+      "source": "jobbank",
+      "tier": "toronto",
+      "tier_label": "new grad Toronto / Ontario",
+      "tier_rank": 2,
+      "title": "Software Developer",
+      "url": "https://example.org/2"
+    },
+    {
+      "age_days": 3,
+      "ats": null,
+      "company": "Far Co",
+      "id": "938e674ee3902362",
+      "location": "Austin, TX",
+      "posted": "2026-11-10",
+      "raw_id": "c",
+      "salary": null,
+      "source": "ats",
+      "title": "Senior Software Engineer",
+      "url": null
+    }
+  ],
+  "tier_counts": {
+    "remote_canada": 0,
+    "remote_unspecified": 0,
+    "remote_us": 0,
+    "seattle": 0,
+    "toronto": 1,
+    "untiered": 0,
+    "vancouver": 1
+  }
+}

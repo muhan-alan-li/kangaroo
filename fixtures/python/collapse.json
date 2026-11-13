@@ -1,0 +1,102 @@
+[
+  {
+    "keep_ids": [
+      "daf80decd723b3e5"
+    ],
+    "postings": [
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "Acme",
+        "id": "7cac264d604fd832",
+        "location": "Vancouver",
+        "posted": null,
+        "raw_id": "one",
+        "salary": null,
+        "source": "newgrad_list",
+        "title": "Software Engineer",
+        "url": "https://boards.greenhouse.io/acme/jobs/123"
+      },
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "Acme",
+        "id": "daf80decd723b3e5",
+        "location": "Vancouver",
+        "posted": null,
+        "raw_id": "two",
+        "salary": null,
+        "source": "ats",
+        "title": "Software Engineer",
+        "url": "https://boards.greenhouse.io/acme/jobs/123"
+      }
+    ]
+  },
+  {
+    "keep_ids": [
+      "3d1bac61b009526f"
+    ],
+    "postings": [
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "X",
+        "id": "cb2e6464a8fe05ca",
+        "location": "Remote",
+        "posted": null,
+        "raw_id": "3",
+        "salary": null,
+        "source": "linkedin",
+        "title": "Engineer",
+        "url": "https://jobs.lever.co/x/0123456789abcdef"
+      },
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "X",
+        "id": "3d1bac61b009526f",
+        "location": "Remote",
+        "posted": null,
+        "raw_id": "4",
+        "salary": null,
+        "source": "newgrad_json",
+        "title": "Engineer",
+        "url": "https://jobs.lever.co/x/0123456789abcdef"
+      }
+    ]
+  },
+  {
+    "keep_ids": [
+      "e62c913fc08a2ff6",
+      "6949106163c8342e"
+    ],
+    "postings": [
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "Same",
+        "id": "e62c913fc08a2ff6",
+        "location": "Toronto",
+        "posted": null,
+        "raw_id": "5",
+        "salary": null,
+        "source": "jobbank",
+        "title": "Dev",
+        "url": null
+      },
+      {
+        "age_days": null,
+        "ats": null,
+        "company": "Same",
+        "id": "6949106163c8342e",
+        "location": "Toronto",
+        "posted": null,
+        "raw_id": "6",
+        "salary": null,
+        "source": "jobbank",
+        "title": "Dev",
+        "url": null
+      }
+    ]
+  }
+]
