@@ -10,6 +10,9 @@ __pycache__/
 .DS_Store
 *.swp
 
+# Rust build output.
+/target
+
 # The candidate's own inputs: candidate_profile.yaml, the resume PDFs, the transcript,
 # and the outreach voice and samples. Personal data -- never commit.
 data/candidate/
@@ -28,3 +31,6 @@ client/node_modules/
 
 # Per-slice git worktrees. One writer per directory.
 .worktrees/
+
+# Rust build output.
+target/
