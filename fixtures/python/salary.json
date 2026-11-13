@@ -1,0 +1,50 @@
+[
+  {
+    "expected": null,
+    "input": null
+  },
+  {
+    "expected": null,
+    "input": ""
+  },
+  {
+    "expected": [
+      100000.0,
+      140000.0,
+      true
+    ],
+    "input": "$50.00 to $70.00 hourly"
+  },
+  {
+    "expected": [
+      130000.0,
+      150000.0,
+      false
+    ],
+    "input": "$130,000 to $150,000 annually"
+  },
+  {
+    "expected": [
+      60000.0,
+      60000.0,
+      false
+    ],
+    "input": "$60,000"
+  },
+  {
+    "expected": null,
+    "input": "$8,000"
+  },
+  {
+    "expected": [
+      50000.0,
+      50000.0,
+      true
+    ],
+    "input": "$25 per hour"
+  },
+  {
+    "expected": null,
+    "input": "Competitive salary"
+  }
+]

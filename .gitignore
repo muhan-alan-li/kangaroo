@@ -28,3 +28,6 @@ client/node_modules/
 
 # Per-slice git worktrees. One writer per directory.
 .worktrees/
+
+# Rust build output.
+target/

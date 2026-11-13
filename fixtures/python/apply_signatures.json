@@ -1,0 +1,182 @@
+[
+  {
+    "expected": [
+      "greenhouse",
+      "acme",
+      "12345",
+      "ats|12345"
+    ],
+    "url": "https://boards.greenhouse.io/acme/jobs/12345?gh_src=x"
+  },
+  {
+    "expected": [
+      "ashby",
+      "acme",
+      "01234567-89ab-cdef-0123-456789abcdef",
+      "ats|01234567-89ab-cdef-0123-456789abcdef"
+    ],
+    "url": "https://jobs.ashbyhq.com/acme/01234567-89ab-cdef-0123-456789abcdef"
+  },
+  {
+    "expected": [
+      "lever",
+      "acme",
+      "01234567-89ab-cdef-0123-456789abcdef",
+      "ats|01234567-89ab-cdef-0123-456789abcdef"
+    ],
+    "url": "https://jobs.lever.co/acme/01234567-89ab-cdef-0123-456789abcdef"
+  },
+  {
+    "expected": [
+      "workday",
+      "External",
+      "Software-Engineer_JR123",
+      "ats|Software-Engineer_JR123"
+    ],
+    "url": "https://acme.wd5.myworkdayjobs.com/en-US/External/job/Canada/Software-Engineer_JR123"
+  },
+  {
+    "expected": [
+      "workday",
+      "External",
+      "Software-Engineer_JR123",
+      "ats|Software-Engineer_JR123"
+    ],
+    "url": "https://wd5.myworkdaysite.com/en-US/recruiting/acme/External/job/Canada/Software-Engineer_JR123"
+  },
+  {
+    "expected": [
+      "workable",
+      "acme",
+      "ABCDEF123456",
+      "ats|workable:acme:ABCDEF123456"
+    ],
+    "url": "https://apply.workable.com/acme/j/ABCDEF123456/"
+  },
+  {
+    "expected": [
+      "smartrecruiters",
+      "Acme",
+      "123456789",
+      "ats|smartrecruiters:acme:123456789"
+    ],
+    "url": "https://jobs.smartrecruiters.com/Acme/123456789-engineer"
+  },
+  {
+    "expected": [
+      "rippling",
+      "acme",
+      "01234567-89ab-cdef-0123-456789abcdef",
+      "ats|rippling:acme:01234567-89ab-cdef-0123-456789abcdef"
+    ],
+    "url": "https://ats.rippling.com/acme/jobs/01234567-89ab-cdef-0123-456789abcdef"
+  },
+  {
+    "expected": [
+      "bamboohr",
+      "acme",
+      "52",
+      "ats|bamboohr:acme:52"
+    ],
+    "url": "https://acme.bamboohr.com/careers/52"
+  },
+  {
+    "expected": [
+      "recruitee",
+      "acme",
+      "software-engineer",
+      "ats|recruitee:acme:software-engineer"
+    ],
+    "url": "https://acme.recruitee.com/o/software-engineer"
+  },
+  {
+    "expected": [
+      "breezy",
+      "acme",
+      "software-engineer",
+      "ats|breezy:acme:software-engineer"
+    ],
+    "url": "https://acme.breezy.hr/p/software-engineer"
+  },
+  {
+    "expected": [
+      "teamtailor",
+      "acme",
+      "1234567",
+      "ats|teamtailor:acme:1234567"
+    ],
+    "url": "https://acme.teamtailor.com/jobs/1234567"
+  },
+  {
+    "expected": [
+      "icims",
+      "acme",
+      "12345",
+      "ats|icims:acme:12345"
+    ],
+    "url": "https://acme.icims.com/jobs/12345/software-engineer"
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": "https://example.com/jobs/123"
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": "https://jobs.lever.co/acme/short"
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": "http://notgreenhouse.io/acme/jobs/12"
+  },
+  {
+    "expected": [
+      "workday",
+      "External",
+      "Software-Engineer_JR45",
+      "ats|Software-Engineer_JR45"
+    ],
+    "url": "https://acme.wd5.myworkdayjobs.com/External/job/Software-Engineer_JR45"
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": "https://apply.workable.com/acme/j/ABC12/"
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": ""
+  },
+  {
+    "expected": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "url": "https://acme.bamboohr.com/careers/not-an-id"
+  }
+]

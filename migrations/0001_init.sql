@@ -1,0 +1,17 @@
+CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
+CREATE TABLE postings (id TEXT PRIMARY KEY, source TEXT NOT NULL, ats TEXT, raw_id TEXT, company TEXT NOT NULL, title TEXT NOT NULL, location TEXT, url TEXT, salary_raw TEXT, salary_annual_min INTEGER, salary_annual_max INTEGER, salary_estimated INTEGER NOT NULL DEFAULT 0, below_comp_floor INTEGER NOT NULL DEFAULT 0, posted TEXT, posted_derived INTEGER NOT NULL DEFAULT 0, age_days INTEGER, scanned_at TEXT, tier TEXT, score INTEGER, level_ii INTEGER NOT NULL DEFAULT 0, requires_us_work_auth INTEGER NOT NULL DEFAULT 0, keywords_json TEXT NOT NULL DEFAULT '[]', skills_have_json TEXT NOT NULL DEFAULT '[]', skills_gap_json TEXT NOT NULL DEFAULT '[]', emails_json TEXT NOT NULL DEFAULT '[]', verified_emails_json TEXT NOT NULL DEFAULT '[]', has_text INTEGER NOT NULL DEFAULT 0, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, expires_on TEXT, retired_at TEXT) STRICT;
+CREATE INDEX postings_live ON postings (retired_at, tier, posted);
+CREATE INDEX postings_company ON postings (company);
+CREATE TABLE descriptions (posting_id TEXT PRIMARY KEY REFERENCES postings (id) ON DELETE CASCADE, text TEXT NOT NULL, source TEXT, fetched_at TEXT) STRICT;
+CREATE TABLE seen (id TEXT PRIMARY KEY, reported INTEGER NOT NULL DEFAULT 0, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL) STRICT;
+CREATE INDEX seen_reported ON seen (reported);
+CREATE TABLE scan_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, mode TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT, matched INTEGER, error TEXT, stats_json TEXT NOT NULL DEFAULT '{}') STRICT;
+CREATE TABLE source_runs (scan_run_id INTEGER NOT NULL REFERENCES scan_runs (id) ON DELETE CASCADE, source TEXT NOT NULL, found INTEGER NOT NULL DEFAULT 0, kept INTEGER NOT NULL DEFAULT 0, seconds REAL NOT NULL DEFAULT 0, error TEXT, PRIMARY KEY (scan_run_id, source)) STRICT;
+CREATE TABLE briefs (posting_id TEXT PRIMARY KEY REFERENCES postings (id) ON DELETE CASCADE, status TEXT NOT NULL, engine TEXT, generated_at TEXT, started_at TEXT, payload_json TEXT NOT NULL, error TEXT) STRICT;
+CREATE TABLE brief_artifacts (posting_id TEXT NOT NULL REFERENCES briefs (posting_id) ON DELETE CASCADE, kind TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (posting_id, kind)) STRICT;
+CREATE TABLE applied (posting_id TEXT PRIMARY KEY, applied_at TEXT NOT NULL, snapshot_json TEXT NOT NULL) STRICT;
+CREATE TABLE board_health (key TEXT PRIMARY KEY, vendor TEXT, slug TEXT, tenant TEXT, wd TEXT, site TEXT, status TEXT, consecutive_failures INTEGER NOT NULL DEFAULT 0, last_ok_at TEXT, last_checked_at TEXT, next_check_at TEXT, last_error TEXT, error_kind TEXT, updated_at TEXT NOT NULL) STRICT;
+CREATE INDEX board_health_retry ON board_health (status, next_check_at);
+CREATE TABLE probe_failures (key TEXT PRIMARY KEY, streak INTEGER NOT NULL DEFAULT 0, last_error TEXT, updated_at TEXT NOT NULL) STRICT;
+CREATE TABLE harvested_boards (key TEXT PRIMARY KEY, source TEXT, payload_json TEXT NOT NULL, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL) STRICT;
+CREATE TABLE cache (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;

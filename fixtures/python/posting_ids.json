@@ -1,0 +1,93 @@
+[
+  {
+    "expected": {
+      "age_days": null,
+      "ats": null,
+      "company": "Acme",
+      "id": "b35d202549ac3854",
+      "location": "Vancouver, BC",
+      "posted": null,
+      "raw_id": "123",
+      "salary": null,
+      "source": "ats",
+      "title": "Software Engineer",
+      "url": null
+    },
+    "input": {
+      "company": "Acme",
+      "location": "Vancouver, BC",
+      "raw_id": "123",
+      "source": "ats",
+      "title": "Software Engineer",
+      "url": null
+    }
+  },
+  {
+    "expected": {
+      "age_days": null,
+      "ats": null,
+      "company": "Café",
+      "id": "bbe006142a6cadc0",
+      "location": "Montréal",
+      "posted": null,
+      "raw_id": null,
+      "salary": null,
+      "source": "feed",
+      "title": "Junior Dev",
+      "url": null
+    },
+    "input": {
+      "company": "  Café ",
+      "dedupe_key": "ats|é-42",
+      "location": "Montréal",
+      "source": "feed",
+      "title": " Junior Dev ",
+      "url": null
+    }
+  },
+  {
+    "expected": {
+      "age_days": null,
+      "ats": null,
+      "company": "Acme",
+      "id": "e472e43adae50f3e",
+      "location": "Toronto",
+      "posted": null,
+      "raw_id": null,
+      "salary": null,
+      "source": "Feed",
+      "title": "SWE",
+      "url": null
+    },
+    "input": {
+      "company": " Acme ",
+      "location": " Toronto ",
+      "source": "Feed",
+      "title": " SWE ",
+      "url": null
+    }
+  },
+  {
+    "expected": {
+      "age_days": null,
+      "ats": null,
+      "company": "ACME",
+      "id": "e8b7900cc9c250b2",
+      "location": "Toronto",
+      "posted": null,
+      "raw_id": "  XyZ ",
+      "salary": null,
+      "source": "feed",
+      "title": "SWE",
+      "url": null
+    },
+    "input": {
+      "company": "  ACME  ",
+      "location": "Toronto",
+      "raw_id": "  XyZ ",
+      "source": "feed",
+      "title": "SWE",
+      "url": null
+    }
+  }
+]

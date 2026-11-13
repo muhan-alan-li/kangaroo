@@ -1,0 +1,184 @@
+{
+  "levels": [
+    {
+      "expected": false,
+      "title": "Software Engineer"
+    },
+    {
+      "expected": false,
+      "title": "Senior Software Engineer"
+    },
+    {
+      "expected": false,
+      "title": "Cloud Developer"
+    },
+    {
+      "expected": false,
+      "title": "Systems Programmer"
+    },
+    {
+      "expected": false,
+      "title": "Data Engineer"
+    },
+    {
+      "expected": true,
+      "title": "Software Engineer II"
+    },
+    {
+      "expected": false,
+      "title": "Software Engineer I-II"
+    },
+    {
+      "expected": true,
+      "title": "SDE II"
+    }
+  ],
+  "locations": [
+    {
+      "expected": [
+        true,
+        "local",
+        "vancouver"
+      ],
+      "location": "Vancouver, BC, Canada"
+    },
+    {
+      "expected": [
+        true,
+        "remote_ca",
+        "remote_canada"
+      ],
+      "location": "Remote - Canada"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "toronto"
+      ],
+      "location": "Toronto, ON"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "seattle"
+      ],
+      "location": "Seattle, WA"
+    },
+    {
+      "expected": [
+        true,
+        "remote_us",
+        "remote_us"
+      ],
+      "location": "Remote - United States"
+    },
+    {
+      "expected": [
+        true,
+        "remote_unspecified",
+        "remote_unspecified"
+      ],
+      "location": "Remote"
+    },
+    {
+      "expected": [
+        false,
+        "location-rejected",
+        null
+      ],
+      "location": "Vancouver, WA"
+    },
+    {
+      "expected": [
+        false,
+        "location-rejected",
+        null
+      ],
+      "location": "London, England"
+    },
+    {
+      "expected": [
+        false,
+        "unknown",
+        null
+      ],
+      "location": ""
+    },
+    {
+      "expected": [
+        false,
+        "location-rejected",
+        null
+      ],
+      "location": "Surrey, UK"
+    },
+    {
+      "expected": [
+        true,
+        "remote_ca",
+        "remote_canada"
+      ],
+      "location": "Anywhere in Canada"
+    }
+  ],
+  "titles": [
+    {
+      "expected": [
+        true,
+        "matched:software engineer"
+      ],
+      "title": "Software Engineer"
+    },
+    {
+      "expected": [
+        false,
+        "excluded:senior"
+      ],
+      "title": "Senior Software Engineer"
+    },
+    {
+      "expected": [
+        true,
+        "role+tech:developer+cloud"
+      ],
+      "title": "Cloud Developer"
+    },
+    {
+      "expected": [
+        true,
+        "matched:programmer"
+      ],
+      "title": "Systems Programmer"
+    },
+    {
+      "expected": [
+        true,
+        "matched:data engineer"
+      ],
+      "title": "Data Engineer"
+    },
+    {
+      "expected": [
+        true,
+        "matched:software engineer"
+      ],
+      "title": "Software Engineer II"
+    },
+    {
+      "expected": [
+        true,
+        "matched:software engineer"
+      ],
+      "title": "Software Engineer I-II"
+    },
+    {
+      "expected": [
+        true,
+        "matched:sde"
+      ],
+      "title": "SDE II"
+    }
+  ]
+}
