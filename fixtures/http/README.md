@@ -39,6 +39,7 @@ about 90 seconds end to end.
 | 15 | `workday_board` | POST | `https://globalhr.wd5.myworkdayjobs.com/wday/cxs/globalhr/rec_rtx_ext_gateway/jobs` | `Content-Type: application/json`; `Accept: application/json`; `Referer: https://globalhr.wd5.myworkdayjobs.com/rec_rtx_ext_gateway` | **521** | `text/plain; charset=UTF-8` | 16 | 2026-11-13T22:21:51Z |
 | 16 | `startups_gallery` | GET | `https://startups.gallery/jobs` | UA only | 200 | `text/html` | 444,676 | 2026-11-13T22:21:55Z |
 | 17 | `workatastartup` | GET | `https://www.workatastartup.com/jobs` | UA only; `Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`; `Accept-Language: en-CA,en;q=0.9` | 200 | `text/html; charset=utf-8` | 88,238 | 2026-11-13T22:21:59Z |
+| 18 | `workday_board` (retry) | POST | `https://ngc.wd1.myworkdayjobs.com/wday/cxs/ngc/Northrop_Grumman_External_Site/jobs` | `Content-Type: application/json`; `Accept: application/json`; `Referer: https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site` | 200 | `application/json` | 26,358 | 2026-11-13T22:24:38Z |
 
 The Workday body was exactly
 `{"appliedFacets":{},"limit":20,"offset":0,"searchText":""}` sent with
@@ -62,7 +63,7 @@ The Workday body was exactly
 | `json_recruitee` | `json_recruitee/offers.json` | Nothing usable: **404** with the body `{"error":"Not Found"}` (21 bytes). The host answered; the slug `1x` has no public offers endpoint. Recorded as the finding, not retried. |
 | `json_breezy` | `json_breezy/hmt-tank.json` | A JSON array, empty at fetch time (`[]`, 2 bytes). The parser must treat an empty board as zero postings, not a failure. |
 | `json_teamtailor` | `json_teamtailor/noda-1720000970.json` | A JSON Feed 1.1 document; postings live in `items[]`, empty at fetch time (`items: []`, 196 bytes). Same empty-board rule as Breezy. |
-| `workday_board` | `workday_board/jobs.json` | Nothing usable: **521** with the body `error code: 521` (16 bytes) — Cloudflare reported the Workday origin unreachable. Recorded as the finding, not retried. A successful response would carry `jobPostings[]` with `title`, `externalPath`, `locationsText` and `postedOn`. |
+| `workday_board` | `workday_board/ngc-jobs.json` | `total`, then `jobPostings[]` with `title`, `externalPath`, `locationsText`, `postedOn`, `timeType` and `bulletFields`. The first request (row 15, the `globalhr` board) answered **521** `error code: 521` from Cloudflare and its 16-byte body is kept in `workday_board/jobs.json` as the failure case; the `ngc` retry answered 200 with 3,713 postings. |
 | `startups_gallery` | `startups_gallery/jobs.html` | 20 `<a class="framer-zpdfqp" ... href="<ATS apply URL>">` job cards; the `<h2>` is the title, the text after it splits on `·` into company then locations. **Drift:** the date is now a `<time datetime="2026-11-13T00:00:00.000Z">· Nov 13, 2026</time>` child and the old `Posted on …` text is gone, so the current `gallery.py` regex finds no date; the Rust parser should read `<time datetime>`. |
 | `workatastartup` | `workatastartup/jobs.html` | A single HTML-escaped Inertia `data-page="…"` attribute; JSON-decode it and read `props.jobs[]` (30 jobs) for `id`, `title`, `location`, `companyName`, `companySlug` and `applyUrl`. The browser-shaped `Accept` header is required — the site answers 406 otherwise. |
 
@@ -71,9 +72,12 @@ The Workday body was exactly
 - **`json_recruitee` — 404.** `https://1x.recruitee.com/api/offers/` answered
   `{"error":"Not Found"}`. No retry per the task rules. If the slug is wrong, the
   parser test should use a different board, not this body.
-- **`workday_board` — 521.** The CXS endpoint answered `error code: 521` (16 bytes),
-  Cloudflare's "origin unreachable". No retry per the task rules; the body is not a
-  board payload and cannot feed a parser test.
+- **`workday_board` — 521, then 200 on another board.** The `globalhr` CXS endpoint
+  answered `error code: 521` (16 bytes), Cloudflare's "origin unreachable". A manual retry
+  against the `ngc` board (`ngc.wd1` / `Northrop_Grumman_External_Site`) answered 200 with
+  3,713 postings and is saved as `workday_board/ngc-jobs.json`; the 521 body stays as the
+  failure case. A 521 is board-specific, not fleet-wide: the retry scheduler must treat it
+  as transient.
 - **`json_breezy` and `json_teamtailor` — empty boards.** Both answered 200 with a
   structurally valid, empty listing. They pin the empty-board case rather than a
   populated one; a populated response for either shape still needs capturing.
