@@ -174,6 +174,10 @@ impl AppView {
         let table = cx.new(|cx| TableState::new(EmptyTable, window, cx));
         let input =
             cx.new(|cx| InputState::new(window, cx).placeholder("Search postings (coming later)"));
+        // The engine emits its first snapshot before this view exists and the
+        // event channel keeps no value, so ask for a fresh one now that the
+        // receiver is in place.
+        let _ = commands.send(Command::Snapshot);
         Self {
             commands,
             engine,
@@ -444,10 +448,8 @@ fn main() {
                             target.update(cx, |view, cx| {
                                 match event {
                                     EngineEvent::Dashboard(d) => {
+                                        view.scan_state = Some(d.scan_state.clone());
                                         view.snapshot = Some(d);
-                                        if view.scan_state.is_none() {
-                                            view.scan_state = Some(ScanState::Idle);
-                                        }
                                     }
                                     EngineEvent::ScanStatus(s) => view.scan_state = Some(s),
                                     EngineEvent::Error { message, .. } => {
