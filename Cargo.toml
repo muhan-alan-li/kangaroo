@@ -1,6 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["crates/jh-core", "crates/jh-db", "crates/jh-cli", "crates/jh-spike", "crates/jh-scan"]
+members = [
+    "crates/jh-core",
+    "crates/jh-db",
+    "crates/jh-cli",
+    "crates/jh-scan",
+    "crates/jh-engine",
+    "crates/jh-app",
+]
 
 [workspace.package]
 edition = "2024"
@@ -16,7 +23,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 sha1 = "0.10"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 reqwest = { package = "gpui-pre-reqwest", version = "0.12.15", default-features = false, features = ["rustls-tls-native-roots"] }
 libc = "0.2"
 
