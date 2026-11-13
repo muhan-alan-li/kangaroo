@@ -1,5 +1,5 @@
 [package]
-name = "jh-spike"
+name = "jh-app"
 version = "0.1.0"
 edition.workspace = true
 publish.workspace = true
@@ -16,13 +16,10 @@ gpui = { package = "gpui-pre", version = "=0.3.12" }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit"] }
 # gpui-component 0.9.1, tag v0.9.1 of longbridge/gpui-kit.
 gpui_component = { package = "gpui-component", git = "https://github.com/longbridge/gpui-kit", rev = "39ab849a93b5f15507b969164d49891db8d5b470" }
-# `Root` wraps a window view and hosts dialogs, sheets, notifications and
-# menus; `Assets` supplies the Lucide icons the components draw.
-gpui_base = { package = "gpui-base", git = "https://github.com/longbridge/gpui-kit", rev = "39ab849a93b5f15507b969164d49891db8d5b470" }
-gpui_kit_assets = { package = "gpui-kit-assets", git = "https://github.com/longbridge/gpui-kit", rev = "39ab849a93b5f15507b969164d49891db8d5b470" }
-
 # The status item hands menu clicks to the GPUI main loop over a channel.
 flume = "0.12"
+chrono.workspace = true
+jh-engine = { path = "../jh-engine" }
 
 # The macOS menu bar status item is written directly against AppKit; these are
 # the same objc2 versions gpui-component already links.
@@ -32,6 +29,8 @@ objc2-app-kit = { version = "0.3", features = [
     "NSButton",
     "NSControl",
     "NSEvent",
+    "NSApplication",
+    "NSRunningApplication",
     "NSMenu",
     "NSMenuItem",
     "NSResponder",

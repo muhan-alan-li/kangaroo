@@ -3266,6 +3266,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
+name = "jh-app"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "flume 0.12.0",
+ "gpui-component",
+ "gpui-pre",
+ "gpui-pre-platform",
+ "jh-engine",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "jh-cli"
 version = "0.1.0"
 dependencies = [
@@ -3304,18 +3319,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "jh-spike"
+name = "jh-engine"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "chrono",
  "flume 0.12.0",
- "gpui-base",
- "gpui-component",
- "gpui-kit-assets",
- "gpui-pre",
- "gpui-pre-platform",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
+ "libc",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]
