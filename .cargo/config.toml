@@ -1,0 +1,6 @@
+# GPUI compiles Metal shaders in a build script, which needs the full Xcode toolchain
+# rather than the Command Line Tools: `/usr/bin/metal` lives only in Xcode.app.
+# `force = false` leaves an existing DEVELOPER_DIR alone, so a machine with a different
+# Xcode path can override it.
+[env]
+DEVELOPER_DIR = { value = "/Applications/Xcode.app/Contents/Developer", force = false }
