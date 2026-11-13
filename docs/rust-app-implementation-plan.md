@@ -204,3 +204,11 @@ briefs, key gating. Then the app bundle, ad-hoc signing, the DMG and macOS CI.
 | Confirm the GPUI pin and the minimum macOS version. | S2 | Packaging |
 | Decide the description-fetch budget for the Rust portal. | Orchestrator | S6 |
 | Decide when the docker timer on `home` stops. | Candidate | S6 cutover |
+
+## 8. Known issues found by running the app
+
+| Date | Symptom | Cause | Status |
+|---|---|---|---|
+| 2026-11-13 | The status panel stayed on `Engine: Starting` while the window was behind another app. | macOS defers drawing for an occluded window, so a window capture returns the first frame. The state was correct. | Not a defect. Activate the app before capturing or judging a repaint. |
+| 2026-11-13 | A finished scan still reads `in progress` in the status panel. | The panel keys that text off `finished_at` being absent, but the imported row carries a `finished_at` the formatter ignores. | Open. Fix in S8. |
+| 2026-11-13 | `Scan now` cannot be driven from automation. | The app needs Accessibility permission before synthetic key events reach it. | Not a defect. Click it by hand, or grant the permission. |
