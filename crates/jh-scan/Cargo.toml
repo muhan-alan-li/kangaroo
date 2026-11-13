@@ -1,0 +1,14 @@
+[package]
+name = "jh-scan"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+libc.workspace = true
+reqwest.workspace = true
+serde_yaml.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["sync", "time", "test-util"] }

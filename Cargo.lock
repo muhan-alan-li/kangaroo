@@ -3304,6 +3304,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "jh-scan"
+version = "0.1.0"
+dependencies = [
+ "gpui-pre-reqwest",
+ "libc",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "jh-spike"
 version = "0.1.0"
 dependencies = [
