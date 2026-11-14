@@ -34,17 +34,23 @@ stub scan that writes one `scan_runs` row. It has no sources yet, so a scan find
 ## 2. Build and run
 
 ```sh
-cargo test --all
-cargo run -p jh-app
+make help          # every target
+make run           # build and launch the app
+make check         # format check, clippy, every test
 ```
 
 The app reads and writes `data/state/jobhunt.db` in the current directory. Set `JH_DB_PATH` to
 point somewhere else. To see the panel with data in it:
 
 ```sh
-cargo run -p jh-cli -- import --from fixtures/import_state --db data/state/jobhunt.db
-cargo run -p jh-app
+make import        # load fixtures/import_state into the dev database
+make db            # show what it holds
+make run
 ```
+
+`make reset-db` deletes the dev database, so the next start creates an empty one. The raw cargo
+equivalents work too: `cargo run -p jh-app`, `cargo test --all`, `cargo clippy --all-targets --
+-D warnings`.
 
 ## 3. Machine facts
 
@@ -152,6 +158,7 @@ Python source is not changed on this branch.
 
 | Path | Contents |
 |---|---|
+| `Makefile` | Local targets: `run`, `check`, `import`, `db`, `reset-db`, and the Python ones |
 | `crates/` | The six crates |
 | `migrations/` | `0001_init.sql` |
 | `fixtures/python/` | Parity cases and their generator |
