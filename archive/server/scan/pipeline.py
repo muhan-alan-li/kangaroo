@@ -3,7 +3,7 @@ raw source rows into the posted list."""
 
 from __future__ import annotations
 
-from .filters import _tier_lookup, is_level_ii, location_matches, title_matches
+from .filters import _tier_lookup, is_level_ii, location_matches, region_signals, title_matches
 from .parsing import parse_salary
 
 
@@ -112,9 +112,13 @@ def normalize_and_filter(postings, filters):
         posting["tier"] = tier
         posting["tier_rank"] = rank
         posting["tier_label"] = label
-        if country == "usa":
-            # A US posting means the application asks about US work authorization.
-            # Flagged, never dropped: the candidate decides.
+        # A US-only posting means the application asks about US work
+        # authorization. Flagged, never dropped: the candidate decides. A US
+        # metro tier is US even when the location text carries no explicit
+        # state ("Greater Seattle Area"), and a US-only remote posting inside
+        # the merged "remote" tier is caught by the location's own signals.
+        ca_sig, us_sig = region_signals(posting["location"])
+        if country == "usa" or (us_sig and not ca_sig):
             posting["requires_us_work_auth"] = True
         age = posting.get("age_days")
         if max_age and age is not None and age > max_age:

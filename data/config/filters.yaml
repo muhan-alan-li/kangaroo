@@ -121,19 +121,20 @@ titles_exclude:
   - driver
   - technician
 
-# Ranked locations. The scan prints postings in this order and drops anything that
-# matches no tier at all. Rank = position in this list, so reordering the list is
-# reordering the report -- no other file needs to change.
-#
-# country: usa tells the scan that the application will ask about US work
-# authorization. Those postings are kept but flagged, never hidden.
+# Ranked locations. The scan prints postings in this order. Rank = position in
+# this list, so reordering the list is reordering the report -- no other file
+# needs to change. A posting matches at most one tier: metro cities first, then
+# remote, then the Rest-of-Canada catch-all, so nothing falls between the tiers.
 #
 # cities:            matched on sight, unless the posting looks US-only.
 # ambiguous_cities:  need an explicit Canada signal, because the same name exists
 #                    somewhere else (Richmond VA, London UK, Windsor UK).
+#
+# country is informational: the US work-authorization flag is set from the
+# location's own US/Canada signals, not from this column.
 location_tiers:
   - name: vancouver
-    label: "new grad Vancouver / Metro"
+    label: "Greater Vancouver"
     country: canada
     cities:
       - vancouver
@@ -159,12 +160,24 @@ location_tiers:
       - tsawwassen
       - ladner
 
-  - name: remote_canada
-    label: "new grad remote, Canada"
-    country: canada
+  - name: seattle
+    label: "Greater Seattle"
+    country: usa
+    cities:
+      - seattle
+      - bellevue
+      - redmond
+      - kirkland
+      - bothell
+      - renton
+      - tacoma
+      - everett
+      - lynnwood
+      - issaquah
+      - woodinville
 
   - name: toronto
-    label: "new grad Toronto / Ontario"
+    label: "Greater Toronto"
     country: canada
     cities:
       - toronto
@@ -187,29 +200,38 @@ location_tiers:
       - kingston
       - windsor
 
-  - name: seattle
-    label: "new grad Seattle / Bellevue"
+  - name: sf_bay_area
+    label: "SF Bay Area"
     country: usa
     cities:
-      - seattle
-      - bellevue
-      - redmond
-      - kirkland
-      - bothell
-      - renton
-      - tacoma
-      - everett
-      - lynnwood
-      - issaquah
-      - woodinville
+      - san francisco
+      - south san francisco
+      - sf bay area
+      - oakland
+      - berkeley
+      - san jose
+      - sunnyvale
+      - santa clara
+      - mountain view
+      - palo alto
+      - menlo park
+      - redwood city
+      - san mateo
+      - fremont
+      - cupertino
+      - silicon valley
 
-  - name: remote_us
-    label: "remote, US only (needs US work authorization)"
-    country: usa
+  - name: remote_canada
+    label: "Remote Canada"
+    country: canada
 
-  - name: remote_unspecified
-    label: "remote, region not stated"
+  - name: remote
+    label: "Remote US / anywhere"
     country: unknown
+
+  - name: rest_of_canada
+    label: "Rest of Canada"
+    country: canada
 
 # Where you'll actually work: the Vancouver list kept for reference. The tiers above
 # are what the scan uses; this block only backstops a posting whose tier lookup is
@@ -252,17 +274,21 @@ locations:
     - nanaimo
     - kelowna
 
-# Remote postings: accepted only when they're Canada-eligible.
-# "Remote in USA" is accepted but flagged, because it
-# needs US work authorization. Bare "Remote" is accepted, ranked last, and flagged.
+# Remote postings: accepted only when they're Canada-eligible, or when the
+# region is US-only or unstated, both of which fall into the single "remote"
+# tier above. US-only remote is flagged for US work authorization.
 remote:
   enabled: true
   accept_countries: [canada, can]
   accept_unspecified: true
   accept_us: true
   tier_canada: remote_canada
-  tier_us: remote_us
-  tier_unspecified: remote_unspecified
+  tier_us: remote
+  tier_unspecified: remote
+
+# A Canada location that matches no metro city and is not remote lands here,
+# so the rest of the country is seen instead of dropped.
+rest_of_canada_tier: rest_of_canada
 
 # Freshness. Anything older than this is dropped (new grad roles get stale fast).
 max_age_days: 7

@@ -1,5 +1,5 @@
 use crate::{
-    filters::{is_level_ii, location_matches, tier_lookup, title_matches},
+    filters::{is_level_ii, location_matches, region_signals, tier_lookup, title_matches},
     parsing::parse_salary,
 };
 use serde_json::Value;
@@ -164,7 +164,13 @@ pub fn normalize_and_filter(posts: Vec<Value>, f: &Yaml) -> (Vec<Value>, BTreeMa
         } else {
             let _ = m.insert("tier_label".into(), Value::Null);
         }
-        if country == "usa" {
+        // A US-only posting means the application asks about US work
+        // authorization. Flagged, never dropped: the candidate decides. A US
+        // metro tier is US even when the location text carries no explicit
+        // state ("Greater Seattle Area"), and a US-only remote posting inside
+        // the merged "remote" tier is caught by the location's own signals.
+        let (ca, us) = region_signals(field(&p, "location").unwrap_or(""));
+        if country == "usa" || (us && !ca) {
             let _ = m.insert("requires_us_work_auth".into(), true.into());
         }
         let age = p.get("age_days").and_then(Value::as_i64);

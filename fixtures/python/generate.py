@@ -7,10 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from server.scan.filters import title_matches, is_level_ii, location_matches
-from server.scan.parsing import parse_salary
-from server.scan.pipeline import cap_per_tier, normalize_and_filter, score, tier_counts
-from server.scan.posting import apply_signature, collapse_requisitions, make_posting
+from archive.server.scan.filters import title_matches, is_level_ii, location_matches
+from archive.server.scan.parsing import parse_salary
+from archive.server.scan.pipeline import cap_per_tier, normalize_and_filter, score, tier_counts
+from archive.server.scan.posting import apply_signature, collapse_requisitions, make_posting
 
 OUT = ROOT / "fixtures/python"
 FILTERS = __import__("yaml").safe_load((ROOT / "data/config/filters.yaml").read_text())
@@ -51,7 +51,7 @@ def main():
     dump("apply_signatures.json", [{"url": u, "expected": apply_signature(u)} for u in urls])
 
     titles = ["Software Engineer", "Senior Software Engineer", "Cloud Developer", "Systems Programmer", "Data Engineer", "Software Engineer II", "Software Engineer I-II", "SDE II"]
-    locations = ["Vancouver, BC, Canada", "Remote - Canada", "Toronto, ON", "Seattle, WA", "Remote - United States", "Remote", "Vancouver, WA", "London, England", "", "Surrey, UK", "Anywhere in Canada"]
+    locations = ["Vancouver, BC, Canada", "Remote - Canada", "Toronto, ON", "Seattle, WA", "Remote - United States", "Remote", "Vancouver, WA", "London, England", "", "Surrey, UK", "Anywhere in Canada", "San Francisco, CA", "SF Bay Area", "Calgary, AB", "Montréal, QC", "Greater Vancouver, BC", "Greater Seattle Area", "Remote - US"]
     dump("filters.json", {
         "titles": [{"title": t, "expected": title_matches(t, FILTERS)} for t in titles],
         "levels": [{"title": t, "expected": is_level_ii(t, FILTERS)} for t in titles],
@@ -62,9 +62,11 @@ def main():
         make_posting("ats", "Acme", "Junior Software Engineer", "Vancouver, BC, Canada", "https://jobs.lever.co/acme/0123456789abcdef", date(2026, 11, 13), 0, "$90,000 annually", "lever", "a"),
         make_posting("jobbank", "Local Co", "Software Developer", "Toronto, ON", "https://example.org/2", date(2026, 11, 12), 1, "$35 hourly", None, "b"),
         make_posting("ats", "Far Co", "Senior Software Engineer", "Austin, TX", None, date(2026, 11, 10), 3, None, None, "c"),
+        make_posting("ats", "Bay Co", "Software Engineer", "San Francisco, CA", "https://jobs.lever.co/bay/0123456789abcdef", date(2026, 11, 11), 2, None, "lever", "d"),
+        make_posting("jobbank", "Prairie Co", "Software Developer", "Calgary, AB", None, date(2026, 11, 9), 4, None, None, "e"),
     ]
     kept, dropped = normalize_and_filter(rows, FILTERS)
-    ordered = sorted(kept, key=__import__("server.scan.pipeline", fromlist=["sort_key"]).sort_key)
+    ordered = sorted(kept, key=__import__("archive.server.scan.pipeline", fromlist=["sort_key"]).sort_key)
     capped, cap_dropped = cap_per_tier(ordered, 1)
     dump("pipeline.json", {"postings": rows, "expected": [{"id": p["id"], "score": p["score"], "tier": p["tier"], "tier_rank": p["tier_rank"]} for p in ordered], "kept_ids": [p["id"] for p in ordered], "dropped": dropped, "cap_ids": [p["id"] for p in capped], "cap_dropped": cap_dropped, "tier_counts": tier_counts(ordered, FILTERS)})
 

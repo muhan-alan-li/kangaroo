@@ -283,5 +283,10 @@ pub fn location_matches(location: Option<&str>, f: &Value) -> (bool, String, Opt
         }
         return (false, "remote-unspecified-rejected".into(), None);
     }
+    // A Canada posting that matched no metro and is not remote is "rest of
+    // Canada", when the config names such a tier.
+    if ca && let Some(name) = get(f, "rest_of_canada_tier").and_then(Value::as_str) {
+        return (true, "rest_of_canada".into(), Some(name.to_owned()));
+    }
     (false, "location-rejected".into(), None)
 }

@@ -171,4 +171,11 @@ def location_matches(location, filters):
             return True, "remote_unspecified", remote_cfg.get("tier_unspecified")
         return False, "remote-unspecified-rejected", None
 
+    # 4. A Canada posting that matched no metro and is not remote is "rest of
+    # Canada", when the config names such a tier.
+    if ca:
+        name = filters.get("rest_of_canada_tier")
+        if name:
+            return True, "rest_of_canada", name
+
     return False, "location-rejected", None

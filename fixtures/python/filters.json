@@ -70,7 +70,7 @@
       "expected": [
         true,
         "remote_us",
-        "remote_us"
+        "remote"
       ],
       "location": "Remote - United States"
     },
@@ -78,7 +78,7 @@
       "expected": [
         true,
         "remote_unspecified",
-        "remote_unspecified"
+        "remote"
       ],
       "location": "Remote"
     },
@@ -121,6 +121,62 @@
         "remote_canada"
       ],
       "location": "Anywhere in Canada"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "sf_bay_area"
+      ],
+      "location": "San Francisco, CA"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "sf_bay_area"
+      ],
+      "location": "SF Bay Area"
+    },
+    {
+      "expected": [
+        true,
+        "rest_of_canada",
+        "rest_of_canada"
+      ],
+      "location": "Calgary, AB"
+    },
+    {
+      "expected": [
+        true,
+        "rest_of_canada",
+        "rest_of_canada"
+      ],
+      "location": "Montréal, QC"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "vancouver"
+      ],
+      "location": "Greater Vancouver, BC"
+    },
+    {
+      "expected": [
+        true,
+        "local",
+        "seattle"
+      ],
+      "location": "Greater Seattle Area"
+    },
+    {
+      "expected": [
+        true,
+        "remote_us",
+        "remote"
+      ],
+      "location": "Remote - US"
     }
   ],
   "titles": [

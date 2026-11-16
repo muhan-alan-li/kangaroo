@@ -2,7 +2,9 @@
   "cap_dropped": 0,
   "cap_ids": [
     "d004bf59adf0ab8d",
-    "48f5088c2abb1cd7"
+    "48f5088c2abb1cd7",
+    "19b0cd55d6aeb74b",
+    "cefe92b837260a50"
   ],
   "dropped": {
     "excluded:senior": 1
@@ -19,11 +21,25 @@
       "score": 52,
       "tier": "toronto",
       "tier_rank": 2
+    },
+    {
+      "id": "19b0cd55d6aeb74b",
+      "score": 60,
+      "tier": "sf_bay_area",
+      "tier_rank": 3
+    },
+    {
+      "id": "cefe92b837260a50",
+      "score": 20,
+      "tier": "rest_of_canada",
+      "tier_rank": 6
     }
   ],
   "kept_ids": [
     "d004bf59adf0ab8d",
-    "48f5088c2abb1cd7"
+    "48f5088c2abb1cd7",
+    "19b0cd55d6aeb74b",
+    "cefe92b837260a50"
   ],
   "postings": [
     {
@@ -42,7 +58,7 @@
       "score": 90,
       "source": "ats",
       "tier": "vancouver",
-      "tier_label": "new grad Vancouver / Metro",
+      "tier_label": "Greater Vancouver",
       "tier_rank": 0,
       "title": "Junior Software Engineer",
       "url": "https://jobs.lever.co/acme/0123456789abcdef"
@@ -64,7 +80,7 @@
       "score": 52,
       "source": "jobbank",
       "tier": "toronto",
-      "tier_label": "new grad Toronto / Ontario",
+      "tier_label": "Greater Toronto",
       "tier_rank": 2,
       "title": "Software Developer",
       "url": "https://example.org/2"
@@ -81,13 +97,51 @@
       "source": "ats",
       "title": "Senior Software Engineer",
       "url": null
+    },
+    {
+      "age_days": 2,
+      "ats": "lever",
+      "company": "Bay Co",
+      "id": "19b0cd55d6aeb74b",
+      "location": "San Francisco, CA",
+      "location_kind": "local",
+      "posted": "2026-11-11",
+      "raw_id": "d",
+      "requires_us_work_auth": true,
+      "salary": null,
+      "score": 60,
+      "source": "ats",
+      "tier": "sf_bay_area",
+      "tier_label": "SF Bay Area",
+      "tier_rank": 3,
+      "title": "Software Engineer",
+      "url": "https://jobs.lever.co/bay/0123456789abcdef"
+    },
+    {
+      "age_days": 4,
+      "ats": null,
+      "company": "Prairie Co",
+      "id": "cefe92b837260a50",
+      "location": "Calgary, AB",
+      "location_kind": "rest_of_canada",
+      "posted": "2026-11-09",
+      "raw_id": "e",
+      "salary": null,
+      "score": 20,
+      "source": "jobbank",
+      "tier": "rest_of_canada",
+      "tier_label": "Rest of Canada",
+      "tier_rank": 6,
+      "title": "Software Developer",
+      "url": null
     }
   ],
   "tier_counts": {
+    "remote": 0,
     "remote_canada": 0,
-    "remote_unspecified": 0,
-    "remote_us": 0,
+    "rest_of_canada": 1,
     "seattle": 0,
+    "sf_bay_area": 1,
     "toronto": 1,
     "untiered": 0,
     "vancouver": 1
