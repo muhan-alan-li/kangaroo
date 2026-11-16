@@ -10,7 +10,8 @@ The app is read-only about applications. It marks a posting applied. It never fi
 submits, signs in, or sends mail. The candidate applies from the posting's own link.
 
 **This branch is `rust-app`.** It adds a native macOS app under `crates/`. Read `REPORT.md`
-for its state. The Python workspace still runs production.
+for its state. The Python server, the Preact client, the container and the systemd units live
+under `archive/`; they are out of the build here and still run production on `main`.
 
 ## Layout
 
@@ -18,36 +19,26 @@ for its state. The Python workspace still runs production.
 |---|---|
 | `data/candidate/` | Source of truth for every application field: `candidate_profile.yaml` (resume plus `answers_bank`), `resume-text.md`, `resume/`, `documents/`, `outreach-voice/`, `outreach-samples/` |
 | `data/config/` | `sources.yaml`, `filters.yaml`, `ats_boards.yaml`, `workday_boards.yaml`, `json_boards.yaml`, `icims_boards.yaml`, `workday_tombstones.yaml`, `source_candidates.md`, and the prompt templates |
-| `data/state/` | Scan output and portal data, gitignored: `last_scan.json`, `portal_feed.jsonl`, `descriptions.json`, `seen.jsonl`, `board_health.json`, `workday_sweep.json`, `sg_boards.json`, `applied.json`, `briefs/`, `scan.log`, `retry.log` |
-| `server/` | `api/` (HTTP), `scan/` (engine, one module per source), `brief/` (brief engine), `jobs/` (timers and utilities), `tests/` |
-| `client/` | Preact + TypeScript dashboard. `dist/` is committed, because the server box has no Node |
-| `docker/` | Scan and retry image, with `entrypoint.sh` and `entrypoint-retry.sh` |
-| `systemd/` | The two user timers |
-| `crates/` | The Rust app: `jh-core`, `jh-db`, `jh-cli`, `jh-scan`, `jh-engine`, `jh-app` |
+| `data/state/` | Gitignored. The Rust app keeps `jobhunt.db` (postings, the `seen` ledger, runs, descriptions, board health, briefs), `.scan.lock`, and the archived Python files: `last_scan.json`, `portal_feed.jsonl`, `descriptions.json`, `seen.jsonl`, `board_health.json`, `workday_sweep.json`, `sg_boards.json`, `applied.json`, `briefs/`, `scan.log`, `retry.log` |
+| `archive/` | The Python workspace, kept for reference: `server/` (API, scan, brief, jobs, tests), `client/` (Preact dashboard), `docker/` (scan and retry image), `systemd/` (the two user timers). Nothing on this branch reads it |
+| `crates/` | The Rust app: `jh-core`, `jh-db`, `jh-protocol`, `jh-scan`, `jh-engine`, `jh-brief`, `jh-cli`, `jh-server` (the menu-bar agent that owns the engine and SQLite), `jh-app` (the GPUI client) |
 
 ## How a day runs
 
-1. **Scan, Monday to Friday at 09:00, 13:00 and 17:00.** `job-scan.timer` starts
-   `job-scan.service`. The service runs `docker compose -f docker/compose.yaml run --rm scan`.
-   The container runs `entrypoint.sh`: sweep if stale, scan five per tier, then mark reported.
-   It mounts `server/`, `data/config/` and `data/candidate/` read-only and `data/state/`
-   read-write. It uses public DNS, so the burst of board lookups never hits the home resolver
-   limit. A missed slot waits for the next one.
-2. **Retry, Sunday at 22:00.** `job-retry.timer` starts `job-retry.service`, which runs
-   `entrypoint-retry.sh`: retry, then prune after a clean run. Retry re-checks only the Workday
-   boards whose backoff has come up. Prune removes boards that are structurally dead, that is a
-   Workday 404 or 422 from a wrong career-site name. Prune appends each removed key to
+1. **Scan, Monday to Friday at 09:00, 13:00 and 17:00.** `jh-server` owns the scheduler and
+   runs the scan: sweep if stale, scan five per tier, then mark reported. Each slot takes an
+   exclusive `flock` on `data/state/.scan.lock`, so a manual run and a scheduled run never
+   overlap. A missed slot waits for the next one.
+2. **Retry and prune, by hand.** `jh retry` re-checks only the Workday boards whose backoff has
+   come up, then `jh prune` after a clean run. Prune removes boards that are structurally dead,
+   that is a Workday 404 or 422 from a wrong career-site name. Prune appends each removed key to
    `workday_tombstones.yaml`, so the next harvest does not add it again. Delete a tombstone line
    by hand to let a board back in.
 3. **Apply, by the candidate.** The agent reads the posting, rules on the fit, and returns the
    answers and the gaps. It does not submit.
 
-Both timers take an exclusive `flock` on `data/state/.scan.lock`, so a manual run and a
-scheduled run never overlap, and the two jobs never hit Workday at once. Output goes to
-`data/state/scan.log` and `data/state/retry.log`.
-
-There is no agent in the scan loop. A scan cannot score postings or draft text. The dashboard
-shows the deterministic keyword score from `server/scan/engine.py`.
+There is no agent in the scan loop. A scan cannot score postings or draft text. The app shows
+the deterministic keyword score from `jh-core`.
 
 ## Sources
 
@@ -83,64 +74,59 @@ Seven sources are on in `data/config/sources.yaml`: `jobbank`, `newgrad_list`, `
   the two or three main requirements and the past work that meets each. Otherwise write one line
   under "Left out". Level III and L4 sit above level II. A range that includes level I counts as
   level I.
-- **Location tiers set the order:** vancouver, remote_canada, toronto, seattle, remote_us,
-  remote_unspecified. No match means the posting is dropped. Keep a US posting and flag it.
-  `--per-tier N` caps each tier in the printed list only. The timer uses 5.
+- **Location tiers set the order:** vancouver, seattle, toronto, sf_bay_area, remote_canada,
+  remote (US or anywhere), rest_of_canada. A Canada posting that matches no metro and is not
+  remote lands in rest_of_canada; anything else unmatched is dropped. Keep a US posting and flag
+  it. `--per-tier N` caps each tier in the printed list only. The scheduled scan uses 5.
 
 ## Commands
 
-Run these with `/usr/bin/python3`, not a bare `python3`. Inside an agent session `python3`
-resolves to a build with no PyYAML, and the scan finds nothing.
+Do not run the archived Python workspace from this branch. `make` targets build the Rust app.
+
+`jh-server` is a menu-bar agent. It owns the engine, `data/state/jobhunt.db` and the scheduler.
+`jh-app` is the GPUI window; it talks to the server over `data/state/jh.sock` and never opens
+the database. The app starts a sibling server when none answers. The backend port has every
+source except iCIMS, the scan pipeline, board health, sweep, retry, prune, probe, harvest and
+the brief engine. Read `REPORT.md` for the state.
 
 | Command | Does |
 |---|---|
-| `-m server` | Serve `client/` and the API on :8787 |
-| `-m server --api-only --port 8788` | Serve `/api` only, loopback (the production role) |
-| `-m server scan [--per-tier 5]` | Run one scan |
-| `-m server scan --source jobbank` | Limit the scan to one source |
-| `-m server sweep`, `retry`, `prune` | Maintain the Workday cache and board list |
-| `-m server refresh` | Rebuild the portal feed from the last scan |
-| `-m server probe-ats` | Test ATS slugs, rewrite `ats_boards.yaml` |
-| `-m server brief <id> [--deep-contacts]` | Generate one brief |
-| `-m server feed --days 7` | Print the Simplify feed |
+| `make run-server` | Run the menu-bar server in the foreground |
+| `make run` | Build both binaries and launch the desktop app |
+| `target/debug/jh scan --db FILE [--source ID] [--json]` | Run one scan |
+| `target/debug/jh sweep --db FILE [--limit N] [--dry-run]` | Sweep Workday into the cache |
+| `target/debug/jh retry --db FILE [--force] [--dry-run]` | Re-check the boards that failed |
+| `target/debug/jh prune --db FILE [--dry-run]` | Remove structurally dead Workday boards |
+| `target/debug/jh probe-ats --db FILE [--report]` | Probe ATS slugs, rewrite `ats_boards.yaml` |
+| `target/debug/jh harvest workday\|jsonboards --db FILE [--report]` | Rebuild a board list from the feed |
+| `target/debug/jh import --from DIR --db FILE` | Import a Python state directory |
 
-`--source` takes an id from `sources.yaml`. A wrong id matches nothing and exits clean, which
-looks like a quiet day. `--source ats` is wrong and `--source ats_boards` is right.
+`--source` takes an id from `sources.yaml`: `jobbank`, `newgrad_list`, `newgrad_json`,
+`ats_boards`, `startups_gallery`, `workatastartup`, `linkedin`, `remotive`. A wrong id matches
+nothing and exits clean, which looks like a quiet day. `--source ats` is wrong and
+`--source ats_boards` is right.
 
 ## Dashboard
 
-`tailscale serve` hosts `client/` at `https://home.taild62434.ts.net:8443/` and proxies `/api`
-to the Python server on loopback `:8788`. The API is never on the LAN or the tailnet. Every
-request re-reads `data/state/`, so the page is current when a scan ends.
+`jh-app` is the desktop window. It holds no state and opens no database. Each window asks
+`jh-server` for a `Snapshot` after it connects, then applies the events that follow, so two
+windows agree. The server broadcasts every event to every client.
 
-Port 443 is not available: Pi-hole v6 binds it. Do not change Pi-hole.
-
-```sh
-sudo tailscale serve reset
-sudo tailscale serve --bg --yes --https=8443 /home/muhan-li/job-hunt/client
-sudo tailscale serve --bg --yes --https=8443 --set-path=/api http://127.0.0.1:8788/api
-```
-
-The page is a pipeline in three stages, and the tab bar selects the stage. A posting with a
+The window is a pipeline in three stages, and the tab bar selects the stage. A posting with a
 brief leaves Open for Shortlisted. An applied posting moves to Applied. No row is in two tabs.
 A failed brief stays in Open, so the next press retries it.
 
-The API answers these routes:
+The table draws date, location, company, title and fit. A row click opens the detail panel on
+the right, and `Esc` closes it. The panel asks for `PostingDetail`, which carries the cached
+text, the salary and keyword fields, and the brief. In the Open tab a column of ticks marks rows
+for one batch brief.
 
-| Route | Does |
-|---|---|
-| `GET /api/dashboard` | The three lists, with `expires_on` per row |
-| `GET /api/posting/<id>` | One posting, its text, and its brief state |
-| `POST /api/brief/<id>`, `/api/brief/batch` | Start one brief, or a selection |
-| `POST /api/deep-contacts/<id>` | Start the contact search |
-| `POST /api/applied/<id>`, `/api/applied/remove` | Mark applied, or remove a selection |
+The commands are `Scan`, `CancelScan`, `Snapshot`, `RefreshConfig`, `MakeBrief`, `MakeBriefs`,
+`PostingDetail`, `Apply`, `Unapply` and `SaveSettings`. The events are `Dashboard`,
+`PostingDetail`, `ScanStatus`, `BriefUpdated` and `Error`. One JSON object per line, both ways.
 
-A brief runs in a detached process. The API answers before the brief exists, and the page
-polls. A batch route skips an id that already has a brief, so a select-all cannot spend a model
-call on a row the reader has already read.
-
-The scan retires a posting `max_age_days` after its publish date. The page reports that date as
-`expires_on`. Workday publishes a relative age only, so those dates are accurate to about one
+A brief runs on the engine thread. The scan retires a posting `max_age_days` after its publish
+date. Workday publishes a relative age only, so those dates are accurate to about one
 day. Rippling and BambooHR publish no date, so their rows sort last.
 
 ## Rules
@@ -161,6 +147,6 @@ day. Rippling and BambooHR publish no date, so their rows sort last.
   source gives verbatim. Never guess a pattern. Keep the volume cap.
 - Log every outbound message in `data/state/outreach.jsonl`.
 - Look for new sources, and adopt each one for the long term. Adoption takes four steps: a
-  module in `scan/sources/`, a row in `SOURCE_FUNCS`, a block in `sources.yaml`, and a row in
-  `source_candidates.md`. If the source reveals employer boards, run `probe-ats` too. A feed
+  module in `crates/jh-scan/src/sources/`, a row in `sources::build`, a block in `sources.yaml`,
+  and a row in `source_candidates.md`. If the source reveals employer boards, run `probe-ats` too. A feed
   that hands over boards is half-used until that probe runs.

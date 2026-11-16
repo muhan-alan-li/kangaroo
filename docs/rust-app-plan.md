@@ -99,32 +99,35 @@ The first release does not support the old web client. The first release does no
 
 ### 7.1 Process model
 
-The app uses one process. The process has two parts:
+The app uses two processes:
 
-- The UI runs on the main thread. GPUI controls the main thread.
-- The engine runs on a Tokio runtime thread.
+- `jh-server` is the menu-bar agent. It owns the engine, the SQLite pool, the scheduler and the
+  Unix socket.
+- `jh-app` is the GPUI desktop window. It owns no database and no scheduler.
 
-The UI and the engine use `flume` channels. The UI sends commands. The engine sends events.
-The UI does not read or write the database. The engine owns the database.
+The two processes use a Unix socket at `data/state/jh.sock` (or `JH_SOCKET_PATH`). Each line is
+one JSON object: the client writes a command, the server writes events. The server broadcasts
+events to every client.
 
 ```
-UI main thread
+jh-app (GPUI)
   AppState
-      ^ Event
+      ^ Event over Unix socket
       |
       v
-  Engine on Tokio thread
-    - Database
-    - Configuration
-    - Scheduler
-    - Scan service
-    - Brief service
+jh-server (menu bar)
+  - Database
+  - Configuration
+  - Scheduler
+  - Scan service
+  - Brief service
 ```
 
 ### 7.2 No HTTP
 
 The app does not start an HTTP server. The app does not use bearer tokens. The app does not use
-CORS. The UI and the engine are in the same process. Tests call the engine directly.
+CORS. The menu-bar server and the desktop app are separate processes on the same machine, and
+they talk over a Unix socket. Tests call the engine directly.
 
 ### 7.3 Command and event contract
 

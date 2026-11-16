@@ -1,12 +1,12 @@
 # Job Hunt Rust App
 
-**Branch:** `rust-app` · **Date:** 2026-11-13 · **State:** shell works, sources and dashboard to come
+**Branch:** `rust-app` · **Date:** 2026-11-13 · **State:** backend ported, dashboard in
 
 A native macOS app that replaces the Python server and the web dashboard. The engine is Rust,
 the UI is GPUI with `gpui-component`, and the state is SQLite. The YAML files in `data/config/`
 stay the configuration.
 
-`main` is untouched and still runs production on `home`. Nothing here is pushed.
+`main` is untouched and still runs production on `home`.
 
 The design is in `docs/rust-app-plan.md`. Where the design and this file disagree, this file
 wins, because it describes what runs.
@@ -15,31 +15,32 @@ wins, because it describes what runs.
 
 | Crate | Duty | Tests |
 |---|---|---|
-| `jh-core` | Posting id and dedupe key, apply signatures, filters, score and order, parsing, config | 7 |
+| `jh-core` | Posting id and dedupe key, apply signatures, filters, score and order, parsing, keywords, config | 11 |
 | `jh-db` | SQLite pool, migrations, import | — |
-| `jh-cli` | `jh import --from DIR --db FILE`, idempotent | — |
-| `jh-scan` | Egress guard: cache, single-flight, token bucket, breaker, sockets | 17 |
-| `jh-engine` | Engine thread, channels, scheduler, scan lock, stub scan, snapshot | 10 |
-| `jh-app` | Window, status panel, controls, status item, theme | — |
+| `jh-protocol` | The command, event and dashboard types shared by both processes | — |
+| `jh-scan` | Egress guard, the source trait, and one module per feed | 33 |
+| `jh-engine` | Engine thread, scheduler, scan lock, scan pipeline, ledger, board health, brief/apply commands, snapshot, one-posting detail | 13 |
+| `jh-brief` | Three-stage brief chain, validator, SQLite brief rows | 5 |
+| `jh-cli` | `import`, `scan`, `sweep`, `retry`, `prune`, `probe-ats`, `harvest` | — |
+| `jh-server` | Menu-bar agent: engine owner, SQLite owner, Unix-socket server | — |
+| `jh-app` | GPUI desktop client: stages, table, tick column, detail panel, scan controls, theme | 10 |
 
-34 tests pass. `cargo fmt --check` and `cargo clippy -- -D warnings` are clean.
-
-The app starts, creates and migrates its database, shows engine and scan state, schedules
-09:00 / 13:00 / 17:00 on weekdays, takes the scan lock, and runs a stub scan that writes one
-`scan_runs` row. It has no sources yet, so a scan finds nothing.
+72 tests pass. `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
 
 ## Run it
 
 ```sh
-make run        # build and launch
+make run        # build both binaries and launch the desktop app
+make run-server # run the menu-bar server in the foreground
 make check      # format check, clippy, every test
 make import     # load fixtures/import_state into data/state/jobhunt.db
 make db         # show the contents
 make reset-db   # delete the database
 ```
 
-The app reads and writes `data/state/jobhunt.db` in the current directory. Set `JH_DB_PATH` to
-move it. The raw cargo forms work too: `cargo run -p jh-app`, `cargo test --all`.
+The server reads and writes `data/state/jobhunt.db` in the current directory. Set `JH_DB_PATH` to
+move it and `JH_SOCKET_PATH` to move the Unix socket. The app starts a sibling `jh-server` when
+none answers, then talks to it over that socket.
 
 ## Machine facts
 
@@ -56,30 +57,74 @@ move it. The raw cargo forms work too: `cargo run -p jh-app`, `cargo test --all`
 | `gpui` | `gpui-pre` | 0.3.12 | zed `d2a4fb6` |
 | `gpui_platform` | `gpui-pre-platform` | 0.3.12 | same snapshot |
 | `gpui_component` | `gpui-component` | 0.9.1 | `gpui-kit` `39ab849` |
+| `gpui_kit_assets` | `gpui-kit-assets` | 0.9.1 | same revision; the icon bundle |
 
-The macOS status item has no GPUI form, so it uses AppKit through `objc2`. AppKit retains
-neither the item nor its target, so both live in `thread_local` storage.
+The macOS status item has no GPUI form, so `jh-server` writes it directly against AppKit through
+`objc2`. AppKit retains neither the item nor its target, so both live in `thread_local` storage.
 
 ## Architecture
 
-One process, two threads. GPUI owns the main thread. The engine owns a Tokio runtime on its own
-thread and the SQLite pool. The UI never touches the database.
+Two processes. `jh-server` is a menu-bar agent: it owns the engine, the SQLite pool and the
+scheduler. `jh-app` is a GPUI window and never touches the database.
 
 ```
-UI (main) ──Command──► Engine (Tokio) ──► SQLite
-UI (main) ◄──Event──── Engine (Tokio)
+jh-app (GPUI) ──Command──► Unix socket ──► jh-server (Tokio engine) ──► SQLite
+jh-app (GPUI) ◄──Event──── Unix socket ◄── jh-server (Tokio engine)
 ```
 
-Commands: `Scan`, `CancelScan`, `Snapshot`, `RefreshConfig`, `MakeBrief`, `MakeBriefs`,
-`Apply`, `Unapply`, `SaveSettings`. Events: `Dashboard`, `ScanStatus`, `BriefUpdated`, `Error`.
+One JSON object per line in both directions. The server broadcasts every event to every
+connected client, so a second window sees the same state. A client asks for `Snapshot` after it
+connects; the event stream keeps no retained value.
 
-Four commands work today. The rest answer `Error { kind: NotImplemented }`.
+All commands work: `Scan`, `CancelScan`, `Snapshot`, `RefreshConfig`, `MakeBrief`, `MakeBriefs`,
+`PostingDetail`, `Apply`, `Unapply`, `SaveSettings`. Events: `Dashboard`, `PostingDetail`,
+`ScanStatus`, `BriefUpdated`, `Error`.
 
-`flume` keeps no value for a late reader. The view therefore sends `Snapshot` after it
-subscribes; without that, the first snapshot is lost and the panel stays on `Engine: Starting`.
+`PostingDetail` answers with one posting: the table's columns, the cached text, the salary and
+keyword fields, and the brief's stage-C payload. The dashboard lists stay small, so the drawer
+asks for the rest when a row is clicked.
 
-A slot runs sweep, scan, then mark reported. The scheduler and the lock exist. The three steps
-arrive with the sources.
+## The window
+
+One page. The tab bar picks the stage: Open, Shortlisted, Applied, each with its count. The
+table draws date, location, company, title and fit, cut down by the search field. A row click
+opens the detail panel on the right; `Esc` closes it.
+
+In the Open stage a column of ticks marks rows for a batch brief. `Generate briefs` sends one
+`MakeBriefs` for the ticked rows and clears the marks. A tick is drawn by the app, not by the
+table: the table's own selection is one row, which is the row the panel shows. A finished brief
+moves the posting to Shortlisted, so the mark goes with it.
+
+The panel shows the verdict, the key skills, the proposed resume edits, the gaps, the facts and
+the posting text. It holds the actions that belong to one posting: `Generate brief`,
+`Mark applied` and `Open posting`.
+
+The app registers `gpui_kit_assets::Assets`. `gpui_component` names an icon but ships no source
+for it, so without an asset source the tick and the close button draw nothing.
+
+The scheduler runs 09:00 / 13:00 / 17:00 on weekdays. A slot runs the scan under an exclusive
+`flock` on `data/state/.scan.lock`. The scan writes postings, the `seen` ledger, `scan_runs`,
+`source_runs`, descriptions and board health. A posting expires after `max_age_days` and does
+not return.
+
+## Sources
+
+| Source | Kind | Status |
+|---|---|---|
+| Simplify JSON | `simplify_json` | Ported |
+| Simplify README | `simplify` | Ported |
+| Job Bank | `jobbank` | Ported, including detail pages |
+| Greenhouse, Ashby, Lever | `ats` | Ported |
+| Workable, SmartRecruiters, Rippling, BambooHR, Recruitee, Breezy, Teamtailor | `ats` | Ported |
+| Workday | `ats` | Ported, including the sweep cache |
+| startups.gallery | `startups_gallery` | Ported; reads `<time datetime>` and harvests boards |
+| Work at a Startup | `workatastartup` | Ported; `date_missing` |
+| LinkedIn guest search | `linkedin` | Ported, read-only |
+| Remotive | `remotive` | Ported, disabled by default |
+| iCIMS | `ats` | Not ported; needs browser TLS impersonation |
+
+Every parser has a test against `fixtures/http/`. Three of those bodies are 4 MiB prefixes cut
+mid-token; the Rust parser salvages the complete array elements.
 
 ## Parity rules
 
@@ -98,11 +143,19 @@ Break one of these and postings re-report or applications orphan.
 them when Python changes. A behaviour change must fail a Rust test; never edit a fixture to
 make it pass.
 
+## Briefs
+
+The brief is the three-stage chain: requirements, evidence match, finished brief. `validate`
+drops a `before` that is not verbatim in the resume and flags a notable term that appears in
+neither the resume nor the posting. The key is read from `DEEPSEEK_API_KEY`, the Keychain item
+`com.muhanli.jobhunt.deepseek`, or `~/.hermes/auth.json`, in that order. With no key the brief
+buttons are gated and a run records `status: failed` rather than calling the model.
+
 ## Decisions
 
 | Area | Decision |
 |---|---|
-| Order | Scan engine, menu bar shell, dashboard, briefs, distribution |
+| Processes | Menu-bar server owns the engine; the GPUI app is a socket client |
 | Scan host | The Mac. The docker timer on `home` retires after parity |
 | Production | The Python dashboard stays live until the Rust scan matches it |
 | Commits | Local only. No push, and no merge to `main`, without approval |
@@ -114,35 +167,31 @@ make it pass.
 
 | Symptom | Cause | Status |
 |---|---|---|
-| A finished scan reads `in progress` | The panel reads `finished_at` badly | Open, fix with the dashboard |
 | A capture shows the first frame after a change | macOS defers drawing while the window is occluded | Not a defect. Activate the app first |
 | `Scan now` ignores synthetic keys | The app needs Accessibility permission | Not a defect. Click it |
-| A scan finds nothing | There are no sources yet | Expected until S4 |
+| A full scan hits ~2,000 boards | That is the real Workday and JSON-vendor fleet | Expected; the sweep cache removes Workday from the daily path |
+| `jh-server` has no login item yet | Packaging is not started | Open, S9 |
 
 ## Roadmap
 
 | Slice | Work | Done when |
 |---|---|---|
-| S4 | `simplify_json`, `jobbank`, `ats_boards` behind one trait | Each parser matches its saved response, and a live run writes postings |
-| S5 | The seven JSON vendors, Workday plus sweep, `startups_gallery`, `workatastartup` | The cache and board health work, and the retry schedule matches Python |
-| S6 | Pipeline, ledger, portal, health, retry, prune, probe, harvest | A Rust scan and a Python scan give the same ids and fields |
-| S8 | Dashboard: stages, table, drawer, health, settings | Both tables show the same rows |
-| S9 | Brief engine, bundle, signing, CI | A brief uses the current schema, and a tester can install the app |
+| S4 | Sources behind one trait | Done: every parser matches its saved response, and live runs write postings |
+| S5 | JSON vendors, Workday plus sweep, gallery, Work at a Startup | Done: cache, board health and retry schedule work |
+| S6 | Pipeline, ledger, health, retry, prune, probe, harvest | Done in Rust; a same-day id/field diff against Python is still worth running |
+| S8 | Dashboard: stages, table, drawer, health, settings | Stages, table, ticks and drawer are in; health and settings are not |
+| S9 | Brief engine, bundle, signing, CI | Brief engine is in; bundle, signing and CI are not |
 
 Pipeline order: collapse requisitions, filter and tier, sort, split the ledger, write state. The
 per-tier cap shortens a printed list only. It does not touch the dashboard.
-
-`startups.gallery` now dates its cards with `<time datetime>`, so the Python source records no
-publish date for them. The Rust parser must read that attribute. The Python source stays
-unchanged on this branch.
 
 ## Where things are
 
 | Path | Contents |
 |---|---|
-| `Makefile` | `run`, `check`, `import`, `db`, `reset-db`, and the Python targets |
-| `crates/` | The six crates |
-| `migrations/` | `0001_init.sql` |
+| `Makefile` | `run`, `run-server`, `check`, `import`, `db`, `reset-db`, and the Python targets |
+| `crates/` | The nine crates |
+| `migrations/` | `0001_init.sql`, `0002_board_cursor.sql` |
 | `fixtures/python/` | Parity cases and their generator |
 | `fixtures/http/` | One saved response per source family, with provenance in its README |
 | `fixtures/import_state/` | A state directory for the import command |

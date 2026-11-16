@@ -17,172 +17,126 @@ Needs Rust 1.98.1 and full Xcode. GPUI compiles Metal shaders, and the Command L
 not include the `metal` binary.
 
 ```sh
-make run        # build and launch the menu bar app
+make run        # build the menu-bar server and the app, then launch the app
+make run-server # run the menu-bar server in the foreground
 make check      # format check, clippy, every test
 make import     # load the fixture state into data/state/jobhunt.db
 make db         # show what the database holds
 ```
 
-### The Python workspace (production)
+The menu-bar server owns the engine and the database. The desktop app connects to it over a
+Unix socket at `data/state/jh.sock`; it never opens SQLite. The app starts a sibling server when
+none is listening.
 
-Needs Python 3.13 with PyYAML, Node 20 or later for the client, and poppler-utils to read the
-resume PDFs.
+The window is one page. The tab bar picks the stage (Open, Shortlisted, Applied), the table
+lists the postings in it, and a row click opens the detail panel: the brief, the facts, and the
+cached posting text. In Open, tick the rows you want and press `Generate briefs`.
 
-```sh
-/usr/bin/python3 -m server            # dashboard + API on :8787
-/usr/bin/python3 -m server scan --per-tier 5
-make test-py                          # the four smoke tests
-```
+### The archived Python workspace
 
-Always write `/usr/bin/python3`. Inside an agent session a bare `python3` can resolve to a
-toolchain with no PyYAML, and the scan then finds nothing.
+`archive/` holds the Python server, the Preact web client, the scan container and the two user
+timers. They are out of the build on this branch. They still run production on `main`. To use
+them, check out `main`, or move the folders back to the root.
 
 ## Commands
 
-One entry point, `python3 -m server <command>`. With no command it serves the dashboard.
+`make help` lists every target.
 
 | Command | Does |
 |---|---|
-| `-m server` | Serve `client/` and the API on :8787 |
-| `-m server --api-only --port 8788` | Serve `/api` only, loopback (production) |
-| `-m server scan [--per-tier 5] [--source ID]` | Run one scan |
-| `-m server sweep` / `retry` / `prune` | Maintain the Workday cache and board list |
-| `-m server refresh` | Rebuild the portal feed from the last scan |
-| `-m server harvest workday\|jsonboards\|icims` | Rebuild a board-list config |
-| `-m server probe-ats` | Probe and rewrite `ats_boards.yaml` |
-| `-m server brief <id>` | Generate one brief (`--deep-contacts` for contacts) |
-| `-m server brief --list` | List cached briefs |
-| `-m server table --per-tier 3` | Render the shortlist as a PNG |
-| `-m server feed --days 7` | Print the Simplify feed |
-| `-m server bump --bump` | Bump the client cache-buster |
-| `-m server resume-text` | Regenerate `resume-text.md` |
+| `make run` | Build both binaries and launch the desktop app |
+| `make run-server` | Run the menu-bar server in the foreground |
+| `make check` | Format check, clippy, every test |
+| `make import` | Load `fixtures/import_state` into the dev database |
+| `make db` | Show what the dev database holds |
+| `make reset-db` | Delete the dev database |
 
-`make help` lists every target.
+The CLI does the same work without the app:
+
+| Command | Does |
+|---|---|
+| `jh scan --db FILE [--source ID] [--json]` | Run one scan |
+| `jh sweep --db FILE [--limit N] [--dry-run]` | Sweep Workday into the cache |
+| `jh retry --db FILE [--force] [--dry-run]` | Re-check the boards that failed |
+| `jh prune --db FILE [--dry-run]` | Remove dead Workday boards |
+| `jh probe-ats --db FILE [--report]` | Probe ATS slugs, rewrite `ats_boards.yaml` |
+| `jh harvest workday\|jsonboards --db FILE [--report]` | Rebuild a board list from the feed |
+| `jh import --from DIR --db FILE` | Import a Python state directory |
+
+`jh` is `target/debug/jh`.
 
 ## Layout
 
 ```
-crates/        Rust app: jh-core, jh-db, jh-cli, jh-scan, jh-engine, jh-app
-server/        api/ (HTTP), scan/ (engine), brief/ (brief engine), jobs/, tests/
-client/        Preact + TypeScript dashboard; dist/ is committed
-data/config/   Sources, filters, board lists, prompt templates
+crates/          Rust app: jh-core, jh-db, jh-protocol, jh-scan, jh-engine, jh-brief,
+                              jh-cli, jh-server, jh-app
+migrations/      The SQLite schema, embedded by jh-db at startup
+fixtures/        Saved source responses, the Python parity cases and the import state
+docs/            The design, in rust-app-plan.md
+data/config/     Sources, filters, board lists, prompt templates
 data/candidate/  Personal inputs, gitignored; the source of truth for answers
-data/state/    Scan output and portal data, gitignored
-docker/        The scheduled scan and retry image
-systemd/       The two user timers
+data/state/      The database, the scan lock and logs, gitignored
+archive/         The Python server, web client, container and timers, kept for reference
 ```
 
 `AGENTS.md` holds the full list of files in each directory.
 
 ## How data flows
 
-A scan reads `data/config/` and the network, then writes state:
+A scan reads `data/config/` and the network, then writes SQLite:
 
 ```
-sources ──► collapse requisitions ──► filter and tier ──► score and sort ──► ledger split
+sources ──► collapse requisitions ──► filter and tier ──► score and sort ──► postings
                                                                               │
-                            last_scan.json ◄──────────────────────────────────┤
-                            seen.jsonl      ◄─────────────────────────────────┤
-                            portal_feed.jsonl (via portal.py) ◄───────────────┘
+                                       seen ledger, scan_runs, source_runs ◄──┤
+                                       descriptions, board health ◄──────────┘
 ```
 
 Sources do network work only. Filtering, ranking and storage live in shared modules, so every
 source behaves the same way.
 
-The dashboard reads state and nothing else:
-
-```
-browser ──► tailscale serve ──► api/app.py ──► data/state/*  (read on each request)
-```
-
-The API never fetches a page and never calls a model. It reads files and starts detached jobs.
+The desktop app reads nothing itself. It asks `jh-server` for a `Snapshot` over the Unix socket,
+then applies the events that follow.
 
 ## The brief engine
 
-The default engine is a three-stage chain. The key is read from `DEEPSEEK_API_KEY`, or from the
-pool that Hermes keeps in `~/.hermes/auth.json`. The key is never printed.
+`jh-brief` runs a three-stage chain and validates each edit before it saves. A brief lives in
+SQLite, next to the posting. The key is read from `DEEPSEEK_API_KEY`, or from the pool that
+Hermes keeps in `~/.hermes/auth.json`. The key is never printed.
 
-| Module | Duty |
-|---|---|
-| `stages.py` | The three prompts and their model calls |
-| `chain.py` | Run stage A, B, C, then validate and save |
-| `validate.py` | Drop an edit whose `before` is not verbatim in the resume |
-| `agent.py` | The older web-research agent and its review |
-| `contacts.py` | The on-demand contact search |
-| `state.py` | The brief files and their atomic writes |
-
-A brief writes `data/state/briefs/<id>.json` on success and on failure. A `.running` marker
-shows a run in flight. The page polls until the marker clears, and reports a marker older than
-15 minutes as stale.
-
-The default brief carries no contacts. Contact research needs the web, so it is a separate
-action.
+`REPORT.md` describes the chain, the validator and the cache.
 
 ## Configuration and state
 
-`data/config/` holds `sources.yaml`, `filters.yaml`, the five board lists, the Workday
-tombstones, `source_candidates.md` and the prompt templates. `AGENTS.md` describes each file.
+`data/config/` holds `sources.yaml`, `filters.yaml`, the board lists, the Workday tombstones,
+`source_candidates.md` and the prompt templates. `AGENTS.md` describes each file.
 
-`data/state/` holds `last_scan.json`, `portal_feed.jsonl`, `descriptions.json`, `seen.jsonl`,
-`board_health.json`, `workday_sweep.json`, `sg_boards.json`, `applied.json`, `briefs/`, and the
-two job logs.
-
-`data/state/` is generated. `data/candidate/` is personal. Neither is committed. Regenerate
-`resume-text.md` whenever the resume PDF changes.
+`data/state/jobhunt.db` holds the postings, the `seen` ledger, the run rows, descriptions, board
+health and briefs. `data/state/.scan.lock` keeps two scans apart. `data/state/` is generated.
+`data/candidate/` is personal. Neither is committed.
 
 ## Scheduled jobs
 
-Two systemd user timers run containerized jobs: `job-scan.timer` on weekdays at 09:00, 13:00 and
-17:00, and `job-retry.timer` on Sunday at 22:00. Both bypass the home resolver, because a burst
-of board lookups would hit its rate limit. Both share the scan lock.
-
-Run one by hand:
-
-```sh
-make scan-docker
-systemctl --user start job-scan.service
-```
-
-Logs: `data/state/scan.log` and `data/state/retry.log`.
-
-## Deployment
-
-`tailscale serve` hosts `client/` on 8443 and proxies `/api` to the Python server on loopback
-`:8788`. Port 443 belongs to Pi-hole, so the page lives on 8443. The setup commands are in
-`AGENTS.md`.
-
-After a change under `client/`:
-
-```sh
-cd client && npm run build && cd ..
-/usr/bin/python3 -m server bump --bump
-```
-
-`client/dist/` is committed, so the server box needs no Node.
+`jh-server` runs the scan at 09:00, 13:00 and 17:00 on weekdays, under an exclusive `flock` on
+`data/state/.scan.lock`. A missed slot waits for the next one. The app shows the next slot and
+lets you run one by hand.
 
 ## Tests
 
 ```sh
-make test-py
+make test     # every crate
+make check    # format check, clippy, every test
 ```
 
-| File | Covers |
-|---|---|
-| `test_boardstate.py` | Board health, backoff, retry queue, sweep cache, expiry |
-| `test_dashboard.py` | Routes, MIME types, path check, brief helpers |
-| `test_net.py` | DNS cache, pacing, resolver pause, socket cap |
-| `test_retry.py` | Probe contract, retry unpack |
+The parity cases in `fixtures/python` pin the Rust port to the Python behaviour it replaced.
 
 ## Gotchas
 
-- **Interpreter.** Use `/usr/bin/python3`.
-- **Source ids.** A wrong id exits clean with an empty report, which looks like a quiet day.
 - **Age.** Always use the publish field. Rippling, BambooHR and Work at a Startup publish no
   date, so their rows carry `date_missing` and sort last.
-- **Workday.** It throttles by IP. Keep the pool at 16.
-- **Brief.** The POST answer arrives before the brief exists. Poll, do not wait.
-- **iCIMS.** It needs browser impersonation through `.venv-icims` with `curl_cffi`. Without
-  that venv the source is skipped, and the scan still finishes.
+- **Workday.** It throttles by IP. Keep the worker pool at 16.
+- **Brief.** The command answer arrives before the brief exists. Wait for `BriefUpdated`.
+- **Toolchain.** Rust 1.98.1 and full Xcode. The Command Line Tools alone cannot build GPUI.
 
 ## Related
 
