@@ -8,9 +8,16 @@ publish.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 flume = "0.12"
+futures.workspace = true
 libc = "0.2"
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+jh-core = { path = "../jh-core" }
 jh-db = { path = "../jh-db" }
+jh-protocol = { path = "../jh-protocol" }
+jh-scan = { path = "../jh-scan" }
+jh-brief = { path = "../jh-brief" }

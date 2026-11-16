@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, Weekday};
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, SecondsFormat, Utc, Weekday};
+use serde_json::{Value, json};
 use sqlx::{Row, SqlitePool};
 use std::{
     fs,
@@ -10,87 +10,16 @@ use std::{
 };
 use tokio::sync::watch;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum ScanMode {
-    Quick,
-    Full,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
-    pub values: serde_json::Value,
-}
-#[derive(Debug, Clone)]
-pub enum Command {
-    Scan {
-        mode: ScanMode,
-    },
-    CancelScan,
-    MakeBrief {
-        posting_id: String,
-    },
-    MakeBriefs {
-        posting_ids: Vec<String>,
-    },
-    Apply {
-        posting_id: String,
-    },
-    Unapply {
-        posting_ids: Vec<String>,
-    },
-    SaveSettings {
-        settings: Settings,
-    },
-    RefreshConfig,
-    /// Re-send the current dashboard snapshot. The event channel keeps no
-    /// retained value, so a view that subscribes after the engine's first
-    /// emission asks for one with this command.
-    Snapshot,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ErrorKind {
-    Busy,
-    NotImplemented,
-    General,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ScanState {
-    Idle,
-    Running { mode: ScanMode },
-    Error(String),
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LastScan {
-    pub mode: String,
-    pub status: String,
-    pub started_at: String,
-    pub finished_at: Option<String>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DashboardSnapshot {
-    pub live_postings: i64,
-    pub seen_count: i64,
-    pub last_scan: Option<LastScan>,
-    pub database_path: String,
-    pub has_database: bool,
-    pub config_files: usize,
-    /// The engine's scan state, so a snapshot taken after startup reports
-    /// `Idle` instead of leaving the panel on its "starting" placeholder.
-    pub scan_state: ScanState,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EngineEvent {
-    Dashboard(DashboardSnapshot),
-    ScanStatus(ScanState),
-    BriefUpdated {
-        posting_id: String,
-        state: String,
-    },
-    Error {
-        kind: ErrorKind,
-        message: String,
-        source: String,
-    },
-}
+pub use jh_protocol::{
+    BriefDetail, Command, DashboardSnapshot, EngineEvent, ErrorKind, LastScan, PostingDetail,
+    PostingRow, ScanMode, ScanState, Settings,
+};
+
+mod descriptions;
+mod scan;
+
+pub use scan::{ScanOutcome, run as run_scan_once};
+pub mod boardstate;
 
 pub struct EngineHandle {
     pub commands: flume::Sender<Command>,
@@ -164,6 +93,7 @@ async fn run_engine(
 ) {
     let mut pool: Option<SqlitePool> = None;
     let mut scan_state = ScanState::Idle;
+    let config_files = read_config_files();
     match open_database(&db_path).await {
         Ok(p) => pool = Some(p),
         Err(e) => emit_error(&events, ErrorKind::General, format!("{e:#}"), "database"),
@@ -223,7 +153,111 @@ async fn run_engine(
                     let count = read_config_files();
                     emit_dashboard(&events, snapshot(&pool, &db_path, count, scan_state.clone()).await);
                 }
-                Ok(other) => emit_error(&events, ErrorKind::NotImplemented, "not implemented yet".into(), command_name(&other)),
+                Ok(Command::MakeBrief { posting_id }) => {
+                    spawn_brief(&pool, &db_path, config_files, &events, posting_id);
+                }
+                Ok(Command::PostingDetail { posting_id }) => {
+                    if let Some(pool) = &pool
+                        && let Some(detail) = posting_detail(pool, &posting_id).await
+                    {
+                        let _ = events.send(EngineEvent::PostingDetail(detail));
+                    }
+                }
+                Ok(Command::MakeBriefs { posting_ids }) => {
+                    for posting_id in posting_ids {
+                        let existing = match &pool {
+                            Some(pool) => sqlx::query(
+                                "SELECT status FROM briefs WHERE posting_id = ?",
+                            )
+                            .bind(&posting_id)
+                            .fetch_optional(pool)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|row| row.try_get::<String, _>("status").ok()),
+                            None => None,
+                        };
+                        if matches!(existing.as_deref(), Some("ok") | Some("running")) {
+                            let _ = events.send(EngineEvent::BriefUpdated {
+                                posting_id,
+                                state: "skipped".into(),
+                            });
+                            continue;
+                        }
+                        spawn_brief(&pool, &db_path, config_files, &events, posting_id);
+                    }
+                }
+                Ok(Command::Apply { posting_id }) => {
+                    if let Some(pool) = &pool {
+                        apply(pool, &posting_id).await;
+                        emit_dashboard(
+                            &events,
+                            snapshot(&Some(pool.clone()), &db_path, config_files, scan_state.clone())
+                                .await,
+                        );
+                    }
+                }
+                Ok(Command::Unapply { posting_ids }) => {
+                    if let Some(pool) = &pool {
+                        unapply(pool, &posting_ids).await;
+                        emit_dashboard(
+                            &events,
+                            snapshot(&Some(pool.clone()), &db_path, config_files, scan_state.clone())
+                                .await,
+                        );
+                    }
+                }
+                Ok(Command::SaveSettings { settings }) => {
+                    if let Some(pool) = &pool {
+                        let mut values = settings.values.clone();
+                        if let Some(key) = values
+                            .get("deepseek_api_key")
+                            .and_then(Value::as_str)
+                            .filter(|key| !key.is_empty())
+                            .map(str::to_owned)
+                        {
+                            let stored = std::process::Command::new("security")
+                                .args([
+                                    "add-generic-password",
+                                    "-U",
+                                    "-s",
+                                    "com.muhanli.jobhunt.deepseek",
+                                    "-a",
+                                    "jobhunt",
+                                    "-w",
+                                    &key,
+                                ])
+                                .status()
+                                .is_ok_and(|status| status.success());
+                            if !stored {
+                                emit_error(
+                                    &events,
+                                    ErrorKind::General,
+                                    "could not store the model key in the Keychain".into(),
+                                    "settings",
+                                );
+                            }
+                            if let Some(object) = values.as_object_mut() {
+                                object.remove("deepseek_api_key");
+                            }
+                        }
+                        let stamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                        let _ = sqlx::query(
+                            "INSERT INTO settings(key,value_json,updated_at) VALUES('app',?,?)
+                             ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,
+                                updated_at=excluded.updated_at",
+                        )
+                        .bind(values.to_string())
+                        .bind(stamp)
+                        .execute(pool)
+                        .await;
+                        emit_dashboard(
+                            &events,
+                            snapshot(&Some(pool.clone()), &db_path, config_files, scan_state.clone())
+                                .await,
+                        );
+                    }
+                }
                 Err(_) => break,
             },
         }
@@ -251,35 +285,28 @@ async fn run_scan(job: ScanJob) {
         lock,
         events,
         done,
-        mut cancel,
+        cancel,
         config_files,
     } = job;
-    let started = Local::now().to_rfc3339();
     let result = async {
         let pool = match pool {
             Some(pool) => pool,
             None => open_database(&db_path).await?,
         };
-        let insert = sqlx::query("INSERT INTO scan_runs(mode,status,started_at,matched,stats_json) VALUES(?, 'running', ?, 0, '{\"stub\":true}')")
-            .bind(match mode { ScanMode::Quick => "quick", ScanMode::Full => "full" }).bind(&started).execute(&pool).await?;
-        let run_id = insert.last_insert_rowid();
-        let pause = tokio::time::sleep(StdDuration::from_millis(900)); tokio::pin!(pause);
-        let cancelled = tokio::select! { _ = &mut pause => false, changed = cancel.changed() => changed.is_ok() && *cancel.borrow() };
-        let status = if cancelled { "cancelled" } else { "ok" };
-        sqlx::query("UPDATE scan_runs SET status = ?, finished_at = ?, matched = 0, stats_json = '{\"stub\":true}' WHERE id = ?")
-            .bind(status).bind(Local::now().to_rfc3339()).bind(run_id).execute(&pool).await?;
-        emit_dashboard(&events, snapshot(&Some(pool), &db_path, config_files, ScanState::Idle).await);
-        Ok::<bool, anyhow::Error>(cancelled)
-    }.await;
+        let mode = match mode {
+            ScanMode::Quick => "quick",
+            ScanMode::Full => "full",
+        };
+        let outcome = scan::run(&pool, mode, &events, &cancel, &[]).await?;
+        emit_dashboard(
+            &events,
+            snapshot(&Some(pool), &db_path, config_files, ScanState::Idle).await,
+        );
+        Ok::<usize, anyhow::Error>(outcome.matched)
+    }
+    .await;
     match result {
-        Ok(cancelled) => {
-            if cancelled {
-                let _ = events.send(EngineEvent::Error {
-                    kind: ErrorKind::General,
-                    message: "scan cancelled".into(),
-                    source: "scan".into(),
-                });
-            }
+        Ok(_) => {
             let _ = done.send(ScanState::Idle);
         }
         Err(error) => {
@@ -319,6 +346,14 @@ async fn snapshot(
         has_database: pool.is_some(),
         config_files,
         scan_state,
+        open: Vec::new(),
+        shortlisted: Vec::new(),
+        applied: Vec::new(),
+        briefs_enabled: briefs_enabled(),
+        board_total: 0,
+        board_ok: 0,
+        board_failing: 0,
+        board_broken: 0,
     };
     if let Some(pool) = pool {
         out.live_postings =
@@ -347,8 +382,209 @@ async fn snapshot(
             started_at: r.get("started_at"),
             finished_at: r.get("finished_at"),
         });
+
+        let open = sqlx::query(
+            "SELECT p.id,p.company,p.title,p.location,p.url,p.source,p.ats,p.tier,p.score,
+                p.age_days,p.posted,p.expires_on,p.has_text,b.status AS brief_status
+             FROM postings p LEFT JOIN briefs b ON b.posting_id = p.id
+             WHERE p.retired_at IS NULL
+               AND (b.status IS NULL OR b.status = 'failed')
+               AND NOT EXISTS (SELECT 1 FROM applied a WHERE a.posting_id = p.id)
+             ORDER BY (p.score IS NULL), p.score DESC, (p.age_days IS NULL), p.age_days ASC",
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        out.open = open.iter().map(posting_row).collect();
+
+        let shortlisted = sqlx::query(
+            "SELECT p.id,p.company,p.title,p.location,p.url,p.source,p.ats,p.tier,p.score,
+                p.age_days,p.posted,p.expires_on,p.has_text,b.status AS brief_status
+             FROM postings p JOIN briefs b ON b.posting_id = p.id
+             WHERE b.status IN ('ok','running')
+               AND NOT EXISTS (SELECT 1 FROM applied a WHERE a.posting_id = p.id)
+             ORDER BY (b.status = 'running') DESC, (p.score IS NULL), p.score DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        out.shortlisted = shortlisted.iter().map(posting_row).collect();
+
+        let applied = sqlx::query(
+            "SELECT posting_id,applied_at,snapshot_json FROM applied ORDER BY applied_at DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        out.applied = applied.iter().filter_map(applied_row).collect();
+
+        for row in sqlx::query("SELECT status, COUNT(*) AS n FROM board_health GROUP BY status")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default()
+        {
+            let n: i64 = row.get("n");
+            out.board_total += n;
+            match row.get::<Option<String>, _>("status").as_deref() {
+                Some("ok") => out.board_ok += n,
+                Some("broken") => out.board_broken += n,
+                _ => out.board_failing += n,
+            }
+        }
     }
     out
+}
+
+fn posting_row(row: &sqlx::sqlite::SqliteRow) -> PostingRow {
+    let age_days: Option<i64> = row.get("age_days");
+    let posted: Option<String> = row.get::<Option<String>, _>("posted").or_else(|| {
+        age_days.map(|age| {
+            (Utc::now().date_naive() - Duration::days(age))
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+    });
+    PostingRow {
+        id: row.get("id"),
+        company: row.get("company"),
+        title: row.get("title"),
+        location: row.get("location"),
+        url: row.get("url"),
+        source: row.get("source"),
+        ats: row.get("ats"),
+        tier: row.get("tier"),
+        score: row.get("score"),
+        age_days,
+        posted,
+        expires_on: row.get("expires_on"),
+        brief_status: row.get("brief_status"),
+        has_text: row.get::<i64, _>("has_text") != 0,
+        applied_at: None,
+    }
+}
+
+fn applied_row(row: &sqlx::sqlite::SqliteRow) -> Option<PostingRow> {
+    let snapshot: Value =
+        serde_json::from_str(row.get::<String, _>("snapshot_json").as_str()).ok()?;
+    let text = |key: &str| snapshot.get(key).and_then(Value::as_str).map(str::to_owned);
+    Some(PostingRow {
+        id: text("id").or_else(|| Some(row.get::<String, _>("posting_id")))?,
+        company: text("company").unwrap_or_default(),
+        title: text("title").unwrap_or_default(),
+        location: text("location"),
+        url: text("url"),
+        source: text("source").unwrap_or_default(),
+        ats: text("ats"),
+        tier: text("tier"),
+        score: snapshot.get("score").and_then(Value::as_i64),
+        age_days: snapshot.get("age_days").and_then(Value::as_i64),
+        posted: text("posted"),
+        expires_on: text("expires_on"),
+        brief_status: text("brief_status"),
+        has_text: snapshot
+            .get("has_text")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        applied_at: Some(row.get::<String, _>("applied_at")),
+    })
+}
+
+/// One posting with everything the drawer draws: the table's columns, the
+/// cached text, and the brief when one exists.
+async fn posting_detail(pool: &SqlitePool, posting_id: &str) -> Option<PostingDetail> {
+    let row = sqlx::query(
+        "SELECT p.id,p.company,p.title,p.location,p.url,p.source,p.ats,p.tier,p.score,
+            p.age_days,p.posted,p.expires_on,p.has_text,b.status AS brief_status,
+            p.raw_id,p.salary_raw,p.keywords_json,p.skills_have_json,p.skills_gap_json,
+            p.emails_json,p.level_ii,p.requires_us_work_auth,p.below_comp_floor,
+            p.first_seen_at,p.last_seen_at
+         FROM postings p LEFT JOIN briefs b ON b.posting_id = p.id
+         WHERE p.id = ?",
+    )
+    .bind(posting_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()?;
+
+    let description = sqlx::query("SELECT text, source FROM descriptions WHERE posting_id = ?")
+        .bind(posting_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten();
+    let text = description
+        .as_ref()
+        .and_then(|row| row.get::<Option<String>, _>("text"))
+        .filter(|text| !text.trim().is_empty());
+
+    let brief = sqlx::query(
+        "SELECT status,engine,generated_at,payload_json,error FROM briefs WHERE posting_id = ?",
+    )
+    .bind(posting_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .map(|row| BriefDetail {
+        status: row.get("status"),
+        engine: row.get("engine"),
+        generated_at: row.get("generated_at"),
+        error: row.get("error"),
+        payload: row
+            .get::<Option<String>, _>("payload_json")
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or(Value::Null),
+    });
+
+    Some(PostingDetail {
+        row: posting_row(&row),
+        raw_id: row.get("raw_id"),
+        salary_raw: row.get("salary_raw"),
+        keywords: string_list(row.get("keywords_json")),
+        skills_have: string_list(row.get("skills_have_json")),
+        skills_gap: string_list(row.get("skills_gap_json")),
+        emails: string_list(row.get("emails_json")),
+        level_ii: row.get::<i64, _>("level_ii") != 0,
+        requires_us_work_auth: row.get::<i64, _>("requires_us_work_auth") != 0,
+        below_comp_floor: row.get::<i64, _>("below_comp_floor") != 0,
+        first_seen_at: row.get("first_seen_at"),
+        last_seen_at: row.get("last_seen_at"),
+        description: text,
+        description_source: description.as_ref().and_then(|row| row.get("source")),
+        brief,
+    })
+}
+
+/// A `JSON` text column that holds a list of strings.
+fn string_list(raw: Option<String>) -> Vec<String> {
+    raw.and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn briefs_enabled() -> bool {
+    if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|key| !key.is_empty()) {
+        return true;
+    }
+    let keychain = std::process::Command::new("security")
+        .args([
+            "find-generic-password",
+            "-s",
+            "com.muhanli.jobhunt.deepseek",
+            "-w",
+        ])
+        .output();
+    if keychain.is_ok_and(|output| output.status.success()) {
+        return true;
+    }
+    std::env::var("HOME")
+        .ok()
+        .map(|home| {
+            std::path::PathBuf::from(home)
+                .join(".hermes")
+                .join("auth.json")
+        })
+        .is_some_and(|path| path.exists())
 }
 fn emit_dashboard(tx: &flume::Sender<EngineEvent>, snapshot: DashboardSnapshot) {
     let _ = tx.send(EngineEvent::Dashboard(snapshot));
@@ -360,15 +596,92 @@ fn emit_error(tx: &flume::Sender<EngineEvent>, kind: ErrorKind, message: String,
         source: source.into(),
     });
 }
-fn command_name(command: &Command) -> &'static str {
-    match command {
-        Command::MakeBrief { .. } => "brief",
-        Command::MakeBriefs { .. } => "briefs",
-        Command::Apply { .. } => "apply",
-        Command::Unapply { .. } => "unapply",
-        Command::SaveSettings { .. } => "settings",
-        _ => "command",
+
+fn spawn_brief(
+    pool: &Option<SqlitePool>,
+    db_path: &std::path::Path,
+    config_files: usize,
+    events: &flume::Sender<EngineEvent>,
+    posting_id: String,
+) {
+    let Some(pool) = pool.clone() else {
+        emit_error(
+            events,
+            ErrorKind::General,
+            "the database is not open".into(),
+            "brief",
+        );
+        return;
+    };
+    let events = events.clone();
+    let db_path = db_path.to_path_buf();
+    tokio::spawn(async move {
+        let root = std::env::var_os("JH_ROOT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()));
+        let result = jh_brief::generate(&pool, &root, &posting_id).await;
+        let state = result
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("failed")
+            .to_owned();
+        let _ = events.send(EngineEvent::BriefUpdated { posting_id, state });
+        emit_dashboard(
+            &events,
+            snapshot(&Some(pool), &db_path, config_files, ScanState::Idle).await,
+        );
+    });
+}
+
+async fn apply(pool: &SqlitePool, posting_id: &str) {
+    let Ok(Some(row)) = sqlx::query(
+        "SELECT id,source,ats,company,title,location,url,posted,age_days,tier,score
+         FROM postings WHERE id = ?",
+    )
+    .bind(posting_id)
+    .fetch_optional(pool)
+    .await
+    else {
+        return;
+    };
+    let stamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let snapshot = json!({
+        "id": row.get::<String, _>("id"),
+        "source": row.get::<String, _>("source"),
+        "ats": row.get::<Option<String>, _>("ats"),
+        "company": row.get::<String, _>("company"),
+        "title": row.get::<String, _>("title"),
+        "location": row.get::<Option<String>, _>("location"),
+        "url": row.get::<Option<String>, _>("url"),
+        "posted": row.get::<Option<String>, _>("posted"),
+        "age_days": row.get::<Option<i64>, _>("age_days"),
+        "tier": row.get::<Option<String>, _>("tier"),
+        "score": row.get::<Option<i64>, _>("score"),
+        "applied_at": stamp,
+    });
+    let _ = sqlx::query(
+        "INSERT INTO applied(posting_id,applied_at,snapshot_json) VALUES(?,?,?)
+         ON CONFLICT(posting_id) DO UPDATE SET applied_at=excluded.applied_at,
+            snapshot_json=excluded.snapshot_json",
+    )
+    .bind(posting_id)
+    .bind(&stamp)
+    .bind(snapshot.to_string())
+    .execute(pool)
+    .await;
+}
+
+async fn unapply(pool: &SqlitePool, posting_ids: &[String]) {
+    let Ok(mut tx) = pool.begin().await else {
+        return;
+    };
+    for posting_id in posting_ids {
+        let _ = sqlx::query("DELETE FROM applied WHERE posting_id = ?")
+            .bind(posting_id)
+            .execute(&mut *tx)
+            .await;
     }
+    let _ = tx.commit().await;
 }
 fn read_config_files() -> usize {
     fs::read_dir("data/config")
@@ -665,6 +978,193 @@ mod tests {
         );
         let rows = scan_runs(&path);
         assert_eq!(rows, vec![("quick".to_string(), "ok".to_string())]);
+        handle.shutdown().unwrap();
+        remove_database(&path);
+    }
+
+    fn seed_posting(path: &std::path::Path, id: &str, company: &str, title: &str) {
+        block_on(async {
+            let pool = open_database(path).await.unwrap();
+            sqlx::query(
+                "INSERT INTO postings(id,source,company,title,location,url,first_seen_at,last_seen_at)
+                 VALUES(?, 'jobbank', ?, ?, 'Vancouver, BC', 'https://example.com', '2026-11-13T00:00:00Z', '2026-11-13T00:00:00Z')",
+            )
+            .bind(id)
+            .bind(company)
+            .bind(title)
+            .execute(&pool)
+            .await
+            .unwrap();
+            pool.close().await;
+        });
+    }
+
+    #[test]
+    fn dashboard_splits_the_three_stages() {
+        let _serial = SCAN_TEST_LOCK.lock().unwrap();
+        let path = temp_path("stages");
+        remove_database(&path);
+        seed_posting(&path, "aaaaaaaaaaaaaaaa", "Open Co", "Junior Engineer");
+        seed_posting(&path, "bbbbbbbbbbbbbbbb", "Brief Co", "Junior Engineer");
+        seed_posting(&path, "cccccccccccccccc", "Failed Co", "Junior Engineer");
+        seed_posting(&path, "dddddddddddddddd", "Applied Co", "Junior Engineer");
+        block_on(async {
+            let pool = open_database(&path).await.unwrap();
+            sqlx::query(
+                "INSERT INTO briefs(posting_id,status,engine,payload_json)
+                 VALUES('bbbbbbbbbbbbbbbb','ok','deepseek','{}'),
+                        ('cccccccccccccccc','failed','deepseek','{}')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO applied(posting_id,applied_at,snapshot_json)
+                 VALUES('dddddddddddddddd','2026-11-13T00:00:00Z',
+                        '{\"id\":\"dddddddddddddddd\",\"company\":\"Applied Co\",\"title\":\"Junior Engineer\",\"source\":\"jobbank\"}')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            pool.close().await;
+        });
+
+        let handle = Engine::spawn(path.clone()).unwrap();
+        let rx = handle.events.clone();
+        handle.commands.send(Command::Snapshot).unwrap();
+        let snapshot = loop {
+            if let EngineEvent::Dashboard(snapshot) =
+                rx.recv_timeout(StdDuration::from_secs(5)).unwrap()
+            {
+                break snapshot;
+            }
+        };
+        assert_eq!(
+            snapshot
+                .open
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["aaaaaaaaaaaaaaaa", "cccccccccccccccc"]
+        );
+        assert_eq!(
+            snapshot
+                .shortlisted
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["bbbbbbbbbbbbbbbb"]
+        );
+        assert_eq!(
+            snapshot
+                .applied
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["dddddddddddddddd"]
+        );
+        handle.shutdown().unwrap();
+        remove_database(&path);
+    }
+
+    #[test]
+    fn apply_and_unapply_move_a_posting() {
+        let _serial = SCAN_TEST_LOCK.lock().unwrap();
+        let path = temp_path("apply");
+        remove_database(&path);
+        seed_posting(&path, "eeeeeeeeeeeeeeee", "Apply Co", "Junior Engineer");
+        let handle = Engine::spawn(path.clone()).unwrap();
+        let rx = handle.events.clone();
+        let _ = next_dashboard(&rx);
+        handle
+            .commands
+            .send(Command::Apply {
+                posting_id: "eeeeeeeeeeeeeeee".into(),
+            })
+            .unwrap();
+        let after_apply = next_dashboard(&rx);
+        assert_eq!(after_apply.applied.len(), 1);
+        assert!(after_apply.open.is_empty());
+        handle
+            .commands
+            .send(Command::Unapply {
+                posting_ids: vec!["eeeeeeeeeeeeeeee".into()],
+            })
+            .unwrap();
+        let after_unapply = next_dashboard(&rx);
+        assert!(after_unapply.applied.is_empty());
+        assert_eq!(after_unapply.open.len(), 1);
+        handle.shutdown().unwrap();
+        remove_database(&path);
+    }
+
+    /// The drawer asks for one posting and gets its cached text and, when one
+    /// exists, the brief's payload. A posting with neither still answers, so the
+    /// panel can say so instead of spinning.
+    #[test]
+    fn posting_detail_carries_the_text_and_the_brief() {
+        let _serial = SCAN_TEST_LOCK.lock().unwrap();
+        let path = temp_path("detail");
+        remove_database(&path);
+        seed_posting(&path, "1111111111111111", "Detail Co", "Junior Engineer");
+        block_on(async {
+            let pool = open_database(&path).await.unwrap();
+            sqlx::query(
+                "INSERT INTO descriptions(posting_id,text,source)
+                 VALUES('1111111111111111','Build reliable systems.','cache')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO briefs(posting_id,status,engine,generated_at,payload_json)
+                 VALUES('1111111111111111','ok','deepseek','2026-11-13T12:00:00Z',
+                        '{\"verdict\":\"Apply.\",\"key_skills\":[\"Rust\"]}')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            pool.close().await;
+        });
+
+        let handle = Engine::spawn(path.clone()).unwrap();
+        let rx = handle.events.clone();
+        let _ = next_dashboard(&rx);
+        handle
+            .commands
+            .send(Command::PostingDetail {
+                posting_id: "1111111111111111".into(),
+            })
+            .unwrap();
+        let detail = loop {
+            match rx.recv_timeout(StdDuration::from_secs(5)).unwrap() {
+                EngineEvent::PostingDetail(detail) => break detail,
+                _ => continue,
+            }
+        };
+        assert_eq!(detail.row.company, "Detail Co");
+        assert_eq!(
+            detail.description.as_deref(),
+            Some("Build reliable systems.")
+        );
+        assert_eq!(detail.description_source.as_deref(), Some("cache"));
+        let brief = detail.brief.expect("the brief row was not in the detail");
+        assert_eq!(brief.status, "ok");
+        assert_eq!(brief.payload["verdict"], "Apply.");
+
+        // An id the database does not know answers with nothing at all, so the
+        // app never waits on a detail that cannot arrive.
+        handle
+            .commands
+            .send(Command::PostingDetail {
+                posting_id: "nothing".into(),
+            })
+            .unwrap();
+        handle.commands.send(Command::Snapshot).unwrap();
+        assert!(matches!(
+            rx.recv_timeout(StdDuration::from_secs(5)).unwrap(),
+            EngineEvent::Dashboard(_)
+        ));
         handle.shutdown().unwrap();
         remove_database(&path);
     }
