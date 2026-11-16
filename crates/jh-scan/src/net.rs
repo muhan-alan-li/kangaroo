@@ -713,23 +713,95 @@ impl reqwest::dns::Resolve for GuardResolver {
 }
 
 /// Owns the single guard and the only HTTP client used by all scan sources.
+#[derive(Clone)]
 pub struct HttpClient {
     pub guard: Arc<NetworkGuard>,
     client: reqwest::Client,
     sockets: SocketGate,
 }
 
+/// One board's outcome during a scan, collected in memory and written to
+/// SQLite after the sources finish.
+#[derive(Debug, Clone)]
+pub struct BoardNote {
+    pub key: String,
+    pub name: Option<String>,
+    pub ok: bool,
+    pub hits: usize,
+    pub error: Option<String>,
+    pub cursor: Option<serde_json::Value>,
+}
+
+pub type BoardRun = Arc<Mutex<Vec<BoardNote>>>;
+
 /// Shared scan dependencies. Sources receive clones of this context, never new clients.
 #[derive(Clone)]
 pub struct ScanContext {
     pub http: Arc<HttpClient>,
+    /// Workspace root. Relative config and state paths resolve against it.
+    pub root: std::path::PathBuf,
+    /// Per-board outcomes gathered by this run.
+    pub boards: BoardRun,
+    /// Employer boards a feed revealed during this run.
+    pub harvested: Arc<Mutex<Vec<serde_json::Value>>>,
+    /// A fresh Workday sweep's postings, if the engine found a usable cache.
+    pub workday_cache: Option<Arc<Vec<serde_json::Value>>>,
 }
 
 impl ScanContext {
     pub fn new(http: HttpClient) -> Self {
         Self {
             http: Arc::new(http),
+            root: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            boards: Arc::new(Mutex::new(Vec::new())),
+            harvested: Arc::new(Mutex::new(Vec::new())),
+            workday_cache: None,
         }
+    }
+    pub fn with_root(http: HttpClient, root: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            http: Arc::new(http),
+            root: root.into(),
+            boards: Arc::new(Mutex::new(Vec::new())),
+            harvested: Arc::new(Mutex::new(Vec::new())),
+            workday_cache: None,
+        }
+    }
+    pub fn note_board(
+        &self,
+        key: impl Into<String>,
+        name: Option<String>,
+        ok: bool,
+        hits: usize,
+        error: Option<String>,
+    ) {
+        if let Ok(mut notes) = self.boards.lock() {
+            notes.push(BoardNote {
+                key: key.into(),
+                name,
+                ok,
+                hits,
+                error,
+                cursor: None,
+            });
+        }
+    }
+    pub fn take_boards(&self) -> Vec<BoardNote> {
+        self.boards
+            .lock()
+            .map(|mut notes| std::mem::take(&mut *notes))
+            .unwrap_or_default()
+    }
+    pub fn note_harvest(&self, name: &str, ats: &str, slug: &str) {
+        if let Ok(mut boards) = self.harvested.lock() {
+            boards.push(serde_json::json!({"name": name, "ats": ats, "slug": slug}));
+        }
+    }
+    pub fn take_harvested(&self) -> Vec<serde_json::Value> {
+        self.harvested
+            .lock()
+            .map(|mut boards| std::mem::take(&mut *boards))
+            .unwrap_or_default()
     }
 }
 
@@ -790,18 +862,97 @@ impl HttpClient {
         headers: &[(&str, &str)],
         retries: usize,
     ) -> Option<String> {
+        self.get_text_with_timeout(url, headers, DEFAULT_TIMEOUT, retries)
+            .await
+    }
+    /// A GET with the caller's timeout. The scan's sources know their own
+    /// budgets: a 13 MB feed needs 90 s, while one posting detail needs 25.
+    pub async fn get_text_with_timeout(
+        &self,
+        url: &str,
+        headers: &[(&str, &str)],
+        timeout: Duration,
+        retries: usize,
+    ) -> Option<String> {
         get_with_retries::<reqwest::Error, _, _>(
             url,
             retries,
             self.guard.clock.as_ref(),
             || async {
-                let mut response = self.get(url, headers).await?;
+                let mut response = self.get_with_timeout(url, headers, timeout).await?;
                 let body = response.bytes().await?;
                 Ok(String::from_utf8_lossy(&body).into_owned())
             },
             |url, error| eprintln!("{}", fetch_failure_line(url, error)),
         )
         .await
+    }
+    async fn get_with_timeout(
+        &self,
+        url: &str,
+        headers: &[(&str, &str)],
+        timeout: Duration,
+    ) -> Result<GuardedHttpResponse, reqwest::Error> {
+        self.request_with_timeout(reqwest::Method::GET, url, None, headers, timeout)
+            .await
+    }
+    /// A POST with a JSON body, retried like `get_text`. Workday's board API is
+    /// a POST even though it only reads.
+    pub async fn post_text_with_timeout(
+        &self,
+        url: &str,
+        body: &str,
+        headers: &[(&str, &str)],
+        timeout: Duration,
+        retries: usize,
+    ) -> Option<String> {
+        get_with_retries::<reqwest::Error, _, _>(
+            url,
+            retries,
+            self.guard.clock.as_ref(),
+            || async {
+                let mut response = self
+                    .request_with_timeout(
+                        reqwest::Method::POST,
+                        url,
+                        Some(body.to_owned()),
+                        headers,
+                        timeout,
+                    )
+                    .await?;
+                let body = response.bytes().await?;
+                Ok(String::from_utf8_lossy(&body).into_owned())
+            },
+            |url, error| eprintln!("{}", fetch_failure_line(url, error)),
+        )
+        .await
+    }
+    async fn request_with_timeout(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        body: Option<String>,
+        headers: &[(&str, &str)],
+        timeout: Duration,
+    ) -> Result<GuardedHttpResponse, reqwest::Error> {
+        let permit = self.sockets.acquire().await;
+        let mut request = self
+            .client
+            .request(method, url)
+            .timeout(timeout)
+            .header("Accept-Language", DEFAULT_HEADERS[1].1)
+            .header("Accept", DEFAULT_HEADERS[2].1);
+        if let Some(body) = body {
+            request = request.body(body);
+        }
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let response = request.send().await?.error_for_status()?;
+        Ok(GuardedHttpResponse {
+            response: Some(response),
+            _permit: Some(permit),
+        })
     }
     pub fn settings(&self) -> &NetworkSettings {
         self.guard.settings()

@@ -5,10 +5,18 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+futures.workspace = true
+html-escape.workspace = true
 libc.workspace = true
+regex.workspace = true
 reqwest.workspace = true
+serde_json.workspace = true
 serde_yaml.workspace = true
-tokio = { workspace = true, features = ["sync", "time"] }
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+jh-core = { path = "../jh-core" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["sync", "time", "test-util"] }
