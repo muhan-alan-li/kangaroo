@@ -9,9 +9,16 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 clap.workspace = true
+flume = "0.12"
+futures.workspace = true
+regex.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 jh-core = { path = "../jh-core" }
 jh-db = { path = "../jh-db" }
+jh-engine = { path = "../jh-engine" }
+jh-scan = { path = "../jh-scan" }
