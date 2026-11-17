@@ -223,7 +223,7 @@ async fn run_engine(
                                     "-s",
                                     "com.muhanli.kangaroo.deepseek",
                                     "-a",
-                                    "jobhunt",
+                                    "kangaroo",
                                     "-w",
                                     &key,
                                 ])
@@ -354,6 +354,7 @@ async fn snapshot(
         board_ok: 0,
         board_failing: 0,
         board_broken: 0,
+        settings: serde_json::Value::Null,
     };
     if let Some(pool) = pool {
         out.live_postings =
@@ -369,6 +370,14 @@ async fn snapshot(
             .ok()
             .and_then(|r| r.try_get("n").ok())
             .unwrap_or(0);
+        out.settings = sqlx::query("SELECT value_json FROM settings WHERE key = 'app'")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|row| row.try_get::<String, _>("value_json").ok())
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or(serde_json::Value::Null);
         out.last_scan = sqlx::query(
             "SELECT mode,status,started_at,finished_at FROM scan_runs ORDER BY id DESC LIMIT 1",
         )
@@ -616,7 +625,7 @@ fn spawn_brief(
     let events = events.clone();
     let db_path = db_path.to_path_buf();
     tokio::spawn(async move {
-        let root = std::env::var_os("JH_ROOT")
+        let root = std::env::var_os("KANGAROO_ROOT")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()));
         let result = kangaroo_brief::generate(&pool, &root, &posting_id).await;
@@ -752,7 +761,10 @@ mod tests {
     static SCAN_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn temp_path(prefix: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("kangaroo-engine-{prefix}-{}.sqlite", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "kangaroo-engine-{prefix}-{}.sqlite",
+            std::process::id()
+        ))
     }
     fn remove_database(path: &std::path::Path) {
         let _ = fs::remove_file(path);
@@ -884,8 +896,10 @@ mod tests {
     #[test]
     fn engine_creates_missing_database() {
         let _serial = SCAN_TEST_LOCK.lock().unwrap();
-        let root =
-            std::env::temp_dir().join(format!("kangaroo-engine-missing-parent-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "kangaroo-engine-missing-parent-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&root);
         let path = root.join("data").join("state").join("kangaroo.db");
         assert!(!path.exists());
@@ -997,6 +1011,39 @@ mod tests {
             .unwrap();
             pool.close().await;
         });
+    }
+
+    /// The app reads the stored settings back from the dashboard, so a tint
+    /// chosen once has to survive a restart without a second command.
+    #[test]
+    fn the_dashboard_carries_the_stored_settings() {
+        let _serial = SCAN_TEST_LOCK.lock().unwrap();
+        let path = temp_path("settings");
+        remove_database(&path);
+        block_on(async {
+            let pool = open_database(&path).await.unwrap();
+            sqlx::query(
+                "INSERT INTO settings(key,value_json,updated_at)
+                 VALUES('app','{\"tint\":\"dark\"}','2026-11-13T00:00:00Z')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            pool.close().await;
+        });
+
+        let handle = Engine::spawn(path.clone()).unwrap();
+        let rx = handle.events.clone();
+        handle.commands.send(Command::Snapshot).unwrap();
+        let snapshot = loop {
+            if let EngineEvent::Dashboard(snapshot) =
+                rx.recv_timeout(StdDuration::from_secs(5)).unwrap()
+            {
+                break snapshot;
+            }
+        };
+        assert_eq!(snapshot.settings["tint"], "dark");
+        handle.shutdown().unwrap();
     }
 
     #[test]

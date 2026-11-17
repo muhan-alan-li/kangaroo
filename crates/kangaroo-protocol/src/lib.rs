@@ -6,9 +6,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// The socket both processes use unless `JH_SOCKET_PATH` overrides it.
+/// The socket both processes use unless `KANGAROO_SOCKET_PATH` overrides it.
 pub fn default_socket_path() -> PathBuf {
-    std::env::var_os("JH_SOCKET_PATH")
+    std::env::var_os("KANGAROO_SOCKET_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("data/state/kangaroo.sock"))
 }
@@ -163,6 +163,10 @@ pub struct DashboardSnapshot {
     pub board_failing: i64,
     #[serde(default)]
     pub board_broken: i64,
+    /// The stored app settings, so a client reads what it last saved instead of
+    /// keeping its own copy of the file.
+    #[serde(default)]
+    pub settings: serde_json::Value,
 }
 
 #[allow(clippy::large_enum_variant)]
