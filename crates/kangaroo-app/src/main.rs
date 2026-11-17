@@ -5,6 +5,7 @@
 //! a detail panel for the row under the cursor. The Open stage also marks rows
 //! for a batch brief, because a brief is the only step that costs a model call.
 
+mod brand;
 mod client;
 mod detail;
 mod table;
@@ -1995,6 +1996,7 @@ fn main() {
     application()
         .with_assets(gpui_kit_assets::Assets)
         .run(move |cx| {
+            brand::install_dock_icon();
             gpui_component::init(cx);
             theme::apply(cx, tint);
             cx.bind_keys([

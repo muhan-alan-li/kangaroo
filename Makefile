@@ -18,7 +18,7 @@ APP          := target/debug/kangaroo-app
 SERVER       := target/debug/kangaroo-server
 
 .DEFAULT_GOAL := help
-.PHONY: help run run-server build app test fmt fmt-check clippy check import db reset-db clean-rust clean
+.PHONY: help run run-server build app icons test fmt fmt-check clippy check import db reset-db clean-rust clean
 
 help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -34,6 +34,9 @@ run-server: build ## Run the menu-bar server in the foreground
 
 build: ## Build the menu-bar server and the desktop app
 	$(CARGO) build -p kangaroo-server -p kangaroo-app
+
+icons: ## Redraw the menu-bar mark and the dock tile
+	python3 assets/make-icons.py
 
 test: ## Run every Rust test
 	$(CARGO) test --all

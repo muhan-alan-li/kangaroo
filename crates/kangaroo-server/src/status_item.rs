@@ -4,14 +4,29 @@ use anyhow::Result;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{
-    ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
+    AnyThread as _, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, define_class,
+    msg_send, sel,
 };
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSEventModifierFlags, NSMenu, NSMenuItem,
-    NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
+    NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSEventModifierFlags,
+    NSImage, NSImageScaling, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
+    NSVariableStatusItemLength,
 };
-use objc2_foundation::NSString;
+use objc2_foundation::{NSData, NSSize, NSString};
 use std::cell::RefCell;
+
+/// The menu-bar mark: black on transparent, drawn by `assets/make-icons.py`.
+/// A template image, so the menu bar inverts it for the dark and light themes.
+const MENUBAR_ICON: &[u8] = include_bytes!("../../../assets/kangaroo-menubar.png");
+
+/// The mark as AppKit wants it: 20 points square, tinted by the menu bar.
+fn menu_bar_image() -> Option<Retained<NSImage>> {
+    let data = NSData::with_bytes(MENUBAR_ICON);
+    let image = NSImage::initWithData(NSImage::alloc(), &data)?;
+    image.setSize(NSSize::new(22.0, 22.0));
+    image.setTemplate(true);
+    Some(image)
+}
 
 /// The message a menu click sends to the server's control thread.
 #[derive(Clone, Copy)]
@@ -104,7 +119,18 @@ pub fn install(tx: flume::Sender<MenuAction>) {
     let status_item =
         NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength);
     if let Some(button) = status_item.button(mtm) {
-        button.setTitle(&NSString::from_str("Kangaroo"));
+        match menu_bar_image() {
+            Some(image) => {
+                button.setImage(Some(&image));
+                button.setImagePosition(NSCellImagePosition::ImageOnly);
+                // The button is shorter than the bar, so a fixed image would
+                // clip. Scale down instead, which fills the button exactly.
+                button.setImageScaling(NSImageScaling::ScaleProportionallyDown);
+            }
+            // The image is compiled in, so this is only a guard against a
+            // decode failure. A label beats an empty menu-bar slot.
+            None => button.setTitle(&NSString::from_str("Kangaroo")),
+        }
     }
     status_item.setMenu(Some(&menu));
 

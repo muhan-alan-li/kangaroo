@@ -28,6 +28,9 @@ The menu-bar server owns the engine and the database. The desktop app connects t
 Unix socket at `data/state/kangaroo.sock`; it never opens SQLite. The app starts a sibling server
 when none is listening.
 
+The status item and the dock tile show the kangaroo mark. `assets/make-icons.py` draws both files;
+`python3 assets/make-icons.py` writes them again after a shape change.
+
 The window is one page. The tab bar picks the stage (Open, Shortlisted, Applied), the table
 lists the postings in it, and a row click opens the detail panel: the brief, the facts, and the
 cached posting text. In Open, tick the rows you want and press `Generate briefs`.

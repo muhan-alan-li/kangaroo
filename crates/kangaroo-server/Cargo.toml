@@ -21,7 +21,10 @@ kangaroo-protocol = { path = "../kangaroo-protocol" }
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [
     "NSApplication",
+    "NSButton",
+    "NSCell",
     "NSEvent",
+    "NSImage",
     "NSMenu",
     "NSMenuItem",
     "NSResponder",
@@ -29,4 +32,4 @@ objc2-app-kit = { version = "0.3", features = [
     "NSStatusBarButton",
     "NSStatusItem",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSString"] }
+objc2-foundation = { version = "0.3", features = ["NSData", "NSString", "objc2-core-foundation"] }
