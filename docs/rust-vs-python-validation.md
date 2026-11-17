@@ -9,7 +9,7 @@ Ran both pipelines live against the same `data/config`, back-to-back, and diffed
 posting-id sets and fields.
 
 - Python (in a `main` worktree, read-only): `python3 -m server scan --json --no-write --source …`
-- Rust: `jh scan --db <fresh>.db --source …`, then read the SQLite `postings` table.
+- Rust: `kangaroo scan --db <fresh>.db --source …`, then read the SQLite `postings` table.
 
 The six feed sources ran in full. The board fleets ran on a trimmed sample to stay off
 Workday's IP throttle: 245 Greenhouse/Ashby/Lever boards (full), 43 JSON-vendor boards,
@@ -38,7 +38,7 @@ the Python-generated parity cases.
    `🔥`, so the company cell is `"🔥 Amazon"`. Python builds the dedupe key from the
    **un-stripped** company (`raw_id = f"{company}|{title}|{location}"` in
    `archive/server/scan/sources/simplify.py:39`), while Rust strips the emoji *before* building
-   the key (`crates/jh-scan/src/sources/simplify.rs:219-220`). Same posting, different ledger id,
+   the key (`crates/kangaroo-scan/src/sources/simplify.rs:219-220`). Same posting, different ledger id,
    so an already-reported posting re-reports. It only surfaces for postings whose apply URL is
    not a recognised ATS (otherwise `collapse_requisitions` prefers the JSON copy); that is why
    exactly one posting diverged in the recent window.
@@ -88,6 +88,6 @@ in SQLite for those rows. No action needed.
   `urllib` hits, document it and consider whether the Python side (or any other urllib path)
   should move onto the same stack, and whether the Rust worker pool can widen safely as a result.
 - **Keep the source registry in one place.** The two registries (`server/scan/sources/__init__.py`
-  vs `crates/jh-scan/src/sources/mod.rs`) and the per-source modules are hand-kept mirrors. Any
+  vs `crates/kangaroo-scan/src/sources/mod.rs`) and the per-source modules are hand-kept mirrors. Any
   future source added to one side without the other will be a silent miss until another diff like
   this one is run.

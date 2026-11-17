@@ -1,0 +1,24 @@
+[package]
+name = "kangaroo-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "jh"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+flume = "0.12"
+futures.workspace = true
+regex.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+kangaroo-core = { path = "../kangaroo-core" }
+kangaroo-db = { path = "../kangaroo-db" }
+kangaroo-engine = { path = "../kangaroo-engine" }
+kangaroo-scan = { path = "../kangaroo-scan" }

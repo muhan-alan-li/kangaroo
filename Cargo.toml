@@ -1,15 +1,15 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/jh-core",
-    "crates/jh-db",
-    "crates/jh-cli",
-    "crates/jh-scan",
-    "crates/jh-protocol",
-    "crates/jh-engine",
-    "crates/jh-brief",
-    "crates/jh-server",
-    "crates/jh-app",
+    "crates/kangaroo-core",
+    "crates/kangaroo-db",
+    "crates/kangaroo-cli",
+    "crates/kangaroo-scan",
+    "crates/kangaroo-protocol",
+    "crates/kangaroo-engine",
+    "crates/kangaroo-brief",
+    "crates/kangaroo-server",
+    "crates/kangaroo-app",
 ]
 
 [workspace.package]

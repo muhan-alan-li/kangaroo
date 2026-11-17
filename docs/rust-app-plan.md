@@ -1,4 +1,4 @@
-# Job Hunt Rust App Plan
+# Kangaroo Rust App Plan
 
 **Status:** Draft  
 **Branch:** `rust-app`  
@@ -50,7 +50,7 @@ The first release does not have these parts:
 | UI | Native GPUI and `gpui-component`. No web view. |
 | Engine | Full Rust rewrite. No Python. |
 | Configuration | YAML files in `data/config/`. |
-| State | SQLite in `jobhunt.db`. |
+| State | SQLite in `kangaroo.db`. |
 | Transport | In-process channels. No HTTP. |
 | Sources for v1 | Job Bank, Simplify JSON, Simplify HTML, ATS boards, JSON boards, Workday, startups.gallery, Work at a Startup. |
 | Deferred sources | iCIMS and LinkedIn. |
@@ -74,7 +74,7 @@ The first release does not have these parts:
 | Board | One employer job board. |
 | Stage | One of the three lists: Open, Shortlisted, or Applied. |
 | Config | A YAML file in `data/config/`. |
-| State | Data in `jobhunt.db`. |
+| State | Data in `kangaroo.db`. |
 | Key | The model API key. |
 
 ## 5. Goals
@@ -101,21 +101,21 @@ The first release does not support the old web client. The first release does no
 
 The app uses two processes:
 
-- `jh-server` is the menu-bar agent. It owns the engine, the SQLite pool, the scheduler and the
+- `kangaroo-server` is the menu-bar agent. It owns the engine, the SQLite pool, the scheduler and the
   Unix socket.
-- `jh-app` is the GPUI desktop window. It owns no database and no scheduler.
+- `kangaroo-app` is the GPUI desktop window. It owns no database and no scheduler.
 
-The two processes use a Unix socket at `data/state/jh.sock` (or `JH_SOCKET_PATH`). Each line is
-one JSON object: the client writes a command, the server writes events. The server broadcasts
-events to every client.
+The two processes use a Unix socket at `data/state/kangaroo.sock` (or `KANGAROO_SOCKET_PATH`).
+Each line is one JSON object: the client writes a command, the server writes events. The server
+broadcasts events to every client.
 
 ```
-jh-app (GPUI)
+kangaroo-app (GPUI)
   AppState
       ^ Event over Unix socket
       |
       v
-jh-server (menu bar)
+kangaroo-server (menu bar)
   - Database
   - Configuration
   - Scheduler
@@ -179,7 +179,7 @@ The scheduler runs a scan at these local times:
 The scheduler also accepts a manual `Scan now` command.
 
 The scheduler must not start two scans at the same time. A file lock on
-`data/state/.scan.lock` prevents a second scan. The `jh-cli` tool uses the same lock.
+`data/state/.scan.lock` prevents a second scan. The `kangaroo-cli` tool uses the same lock.
 
 The first scan uses a quick mode. A quick mode scans a small set of sources.
 A full scan starts after the quick scan.
@@ -222,8 +222,8 @@ A YAML library can remove comments. The app must add a fixed header again after 
 
 ### 9.1 Database
 
-The app uses SQLite. The database file is `jobhunt.db`.
-For development, the file is `data/state/jobhunt.db`.
+The app uses SQLite. The database file is `kangaroo.db`.
+For development, the file is `data/state/kangaroo.db`.
 For the packaged app, the file is in the application support directory.
 
 The app must set these SQLite options:
@@ -389,7 +389,7 @@ The board lists stay in YAML. The `board_health` table holds only health and ret
 
 ### 9.3 Import mapping
 
-The command `jh import --from ./data --db ./jobhunt.db` must be idempotent.
+The command `kangaroo import --from ./data --db ./kangaroo.db` must be idempotent.
 
 | Source | Destination |
 |---|---|
@@ -748,8 +748,8 @@ JobHunt.app/
 
 The `Info.plist` must set these keys:
 
-- `CFBundleIdentifier`: `com.muhanli.jobhunt`
-- `CFBundleName`: `Job Hunt`
+- `CFBundleIdentifier`: `com.muhanli.kangaroo`
+- `CFBundleName`: `Kangaroo`
 - `CFBundleShortVersionString`
 - `CFBundleVersion`
 - `LSUIElement`: `true`
@@ -766,7 +766,7 @@ The build script must make a DMG with `hdiutil`.
 ### 15.5 Login item
 
 The first build uses a LaunchAgent. The file is
-`~/Library/LaunchAgents/com.muhanli.jobhunt.plist`.
+`~/Library/LaunchAgents/com.muhanli.kangaroo.plist`.
 The agent must set `RunAtLoad` to `true` and `KeepAlive` to `false`.
 
 A later build can use `SMAppService`.
@@ -879,12 +879,12 @@ The team must do these actions first:
 2. Create the workspace.
 3. Add `rust-toolchain.toml`.
 4. Add `migrations/0001_init.sql`.
-5. Add the `jh-db` crate.
-6. Add the `jh-cli import` command.
-7. Add the `jh-core` configuration loader.
-8. Add the `jh-core` dashboard query.
+5. Add the `kangaroo-db` crate.
+6. Add the `kangaroo-cli import` command.
+7. Add the `kangaroo-core` configuration loader.
+8. Add the `kangaroo-core` dashboard query.
 9. Run the GPUI spike.
-10. Add the `jh-app` Open table.
+10. Add the `kangaroo-app` Open table.
 11. Add the tests.
 12. Commit the first slice.
 
@@ -892,27 +892,27 @@ The team must do these actions first:
 
 | Python file | Rust crate | Notes |
 |---|---|---|
-| `server/config.py` | `jh-core` | Paths and constants. |
-| `server/scan/core.py` | `jh-scan` | HTTP and YAML helpers. |
-| `server/scan/net.py` | `jh-scan` | DNS guard. |
-| `server/scan/posting.py` | `jh-core` | Posting IDs and collapse. |
-| `server/scan/filters.py` | `jh-core` | Location and title filters. |
-| `server/scan/pipeline.py` | `jh-scan` | Score and sort. |
-| `server/scan/ledger.py` | `jh-scan` | Ledger. |
-| `server/scan/portal.py` | `jh-scan` | Portal feed. |
-| `server/scan/boardstate.py` | `jh-scan` | Board health. |
-| `server/scan/engine.py` | `jh-engine` | Scan orchestration. |
-| `server/scan/sources/*.py` | `jh-scan/sources` | One module for each source. |
-| `server/scan/keywords.py` | `jh-core` | Keyword extraction. |
-| `server/brief/llm.py` | `jh-brief` | Model client. |
-| `server/brief/stages.py` | `jh-brief` | Three stages. |
-| `server/brief/validate.py` | `jh-brief` | Edit checks. |
-| `server/brief/chain.py` | `jh-brief` | Chain. |
-| `server/api/store.py` | `jh-core` | Dashboard query. |
-| `server/api/triage.py` | `jh-core` | Applied list. |
-| `server/api/briefs.py` | `jh-core` | Brief cache. |
-| `server/jobs/harvest/*.py` | `jh-scan/harvest` | Board harvest. |
-| `server/jobs/retry/*.py` | `jh-scan/retry` | Retry and prune. |
-| `server/jobs/probe_ats.py` | `jh-scan/probe` | ATS probe. |
-| `server/jobs/scan/sweep.py` | `jh-scan/sweep` | Workday sweep. |
-| `server/tests/*.py` | `jh-*` tests | Smoke tests. |
+| `server/config.py` | `kangaroo-core` | Paths and constants. |
+| `server/scan/core.py` | `kangaroo-scan` | HTTP and YAML helpers. |
+| `server/scan/net.py` | `kangaroo-scan` | DNS guard. |
+| `server/scan/posting.py` | `kangaroo-core` | Posting IDs and collapse. |
+| `server/scan/filters.py` | `kangaroo-core` | Location and title filters. |
+| `server/scan/pipeline.py` | `kangaroo-scan` | Score and sort. |
+| `server/scan/ledger.py` | `kangaroo-scan` | Ledger. |
+| `server/scan/portal.py` | `kangaroo-scan` | Portal feed. |
+| `server/scan/boardstate.py` | `kangaroo-scan` | Board health. |
+| `server/scan/engine.py` | `kangaroo-engine` | Scan orchestration. |
+| `server/scan/sources/*.py` | `kangaroo-scan/sources` | One module for each source. |
+| `server/scan/keywords.py` | `kangaroo-core` | Keyword extraction. |
+| `server/brief/llm.py` | `kangaroo-brief` | Model client. |
+| `server/brief/stages.py` | `kangaroo-brief` | Three stages. |
+| `server/brief/validate.py` | `kangaroo-brief` | Edit checks. |
+| `server/brief/chain.py` | `kangaroo-brief` | Chain. |
+| `server/api/store.py` | `kangaroo-core` | Dashboard query. |
+| `server/api/triage.py` | `kangaroo-core` | Applied list. |
+| `server/api/briefs.py` | `kangaroo-core` | Brief cache. |
+| `server/jobs/harvest/*.py` | `kangaroo-scan/harvest` | Board harvest. |
+| `server/jobs/retry/*.py` | `kangaroo-scan/retry` | Retry and prune. |
+| `server/jobs/probe_ats.py` | `kangaroo-scan/probe` | ATS probe. |
+| `server/jobs/scan/sweep.py` | `kangaroo-scan/sweep` | Workday sweep. |
+| `server/tests/*.py` | `kangaroo-*` tests | Smoke tests. |

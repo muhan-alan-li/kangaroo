@@ -1,4 +1,4 @@
-# Job Hunt
+# Kangaroo
 #
 #   make                 list the targets
 #   make run             build and launch the Rust app
@@ -11,11 +11,11 @@
 # The Rust build needs the full Xcode toolchain for its Metal shader step. `.cargo/config.toml`
 # sets DEVELOPER_DIR for you; the Command Line Tools alone are not enough.
 
-CARGO   ?= cargo
-JH_DB   ?= data/state/jobhunt.db
-FIXTURE ?= fixtures/import_state
-APP     := target/debug/jh-app
-SERVER  := target/debug/jh-server
+CARGO        ?= cargo
+KANGAROO_DB  ?= data/state/kangaroo.db
+FIXTURE      ?= fixtures/import_state
+APP          := target/debug/kangaroo-app
+SERVER       := target/debug/kangaroo-server
 
 .DEFAULT_GOAL := help
 .PHONY: help run run-server build app test fmt fmt-check clippy check import db reset-db clean-rust clean
@@ -33,7 +33,7 @@ run-server: build ## Run the menu-bar server in the foreground
 	$(SERVER)
 
 build: ## Build the menu-bar server and the desktop app
-	$(CARGO) build -p jh-server -p jh-app
+	$(CARGO) build -p kangaroo-server -p kangaroo-app
 
 test: ## Run every Rust test
 	$(CARGO) test --all
@@ -50,17 +50,17 @@ clippy: ## Lint the Rust code, warnings are errors
 check: fmt-check clippy test ## Format, lint and test
 
 import: ## Load the fixture state into the dev database
-	$(CARGO) run -q -p jh-cli -- import --from $(FIXTURE) --db $(JH_DB)
+	$(CARGO) run -q -p kangaroo-cli -- import --from $(FIXTURE) --db $(KANGAROO_DB)
 
 db: ## Show what the dev database holds
-	@test -f $(JH_DB) && sqlite3 $(JH_DB) \
+	@test -f $(KANGAROO_DB) && sqlite3 $(KANGAROO_DB) \
 		"select 'postings', count(*) from postings union all \
 		 select 'seen', count(*) from seen union all \
 		 select 'scan_runs', count(*) from scan_runs;" \
-		|| echo "no database at $(JH_DB) -- run make import"
+		|| echo "no database at $(KANGAROO_DB) -- run make import"
 
 reset-db: ## Delete the dev database, so the next start creates an empty one
-	rm -f $(JH_DB) $(JH_DB)-shm $(JH_DB)-wal
+	rm -f $(KANGAROO_DB) $(KANGAROO_DB)-shm $(KANGAROO_DB)-wal
 
 clean-rust: ## Remove the Rust build directory
 	$(CARGO) clean

@@ -1,0 +1,32 @@
+[package]
+name = "kangaroo-server"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "kangaroo-server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+flume = "0.12"
+serde_json.workspace = true
+kangaroo-engine = { path = "../kangaroo-engine" }
+kangaroo-protocol = { path = "../kangaroo-protocol" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = [
+    "NSApplication",
+    "NSEvent",
+    "NSMenu",
+    "NSMenuItem",
+    "NSResponder",
+    "NSStatusBar",
+    "NSStatusBarButton",
+    "NSStatusItem",
+] }
+objc2-foundation = { version = "0.3", features = ["NSString"] }
