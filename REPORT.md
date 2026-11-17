@@ -1,4 +1,4 @@
-# Job Hunt Rust App
+# Kangaroo Rust App
 
 **Branch:** `rust-app` · **Date:** 2026-11-13 · **State:** backend ported, dashboard in
 
@@ -15,17 +15,17 @@ wins, because it describes what runs.
 
 | Crate | Duty | Tests |
 |---|---|---|
-| `jh-core` | Posting id and dedupe key, apply signatures, filters, score and order, parsing, keywords, config | 11 |
-| `jh-db` | SQLite pool, migrations, import | — |
-| `jh-protocol` | The command, event and dashboard types shared by both processes | — |
-| `jh-scan` | Egress guard, the source trait, and one module per feed | 33 |
-| `jh-engine` | Engine thread, scheduler, scan lock, scan pipeline, ledger, board health, brief/apply commands, snapshot, one-posting detail | 13 |
-| `jh-brief` | Three-stage brief chain, validator, SQLite brief rows | 5 |
-| `jh-cli` | `import`, `scan`, `sweep`, `retry`, `prune`, `probe-ats`, `harvest` | — |
-| `jh-server` | Menu-bar agent: engine owner, SQLite owner, Unix-socket server | — |
-| `jh-app` | GPUI desktop client: stages, table, tick column, detail panel, scan controls, theme | 10 |
+| `kangaroo-core` | Posting id and dedupe key, apply signatures, filters, score and order, parsing, keywords, config | 11 |
+| `kangaroo-db` | SQLite pool, migrations, import | — |
+| `kangaroo-protocol` | The command, event and dashboard types shared by both processes | — |
+| `kangaroo-scan` | Egress guard, the source trait, and one module per feed | 33 |
+| `kangaroo-engine` | Engine thread, scheduler, scan lock, scan pipeline, ledger, board health, brief/apply commands, snapshot, one-posting detail | 13 |
+| `kangaroo-brief` | Three-stage brief chain, validator, SQLite brief rows | 5 |
+| `kangaroo-cli` | `import`, `scan`, `sweep`, `retry`, `prune`, `probe-ats`, `harvest` | — |
+| `kangaroo-server` | Menu-bar agent: engine owner, SQLite owner, Unix-socket server | — |
+| `kangaroo-app` | GPUI desktop client: stages, table, tick column, detail panel, scan controls, appearance setting | 19 |
 
-72 tests pass. `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
+82 tests pass. `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean.
 
 ## Run it
 
@@ -33,14 +33,14 @@ wins, because it describes what runs.
 make run        # build both binaries and launch the desktop app
 make run-server # run the menu-bar server in the foreground
 make check      # format check, clippy, every test
-make import     # load fixtures/import_state into data/state/jobhunt.db
+make import     # load fixtures/import_state into data/state/kangaroo.db
 make db         # show the contents
 make reset-db   # delete the database
 ```
 
-The server reads and writes `data/state/jobhunt.db` in the current directory. Set `JH_DB_PATH` to
-move it and `JH_SOCKET_PATH` to move the Unix socket. The app starts a sibling `jh-server` when
-none answers, then talks to it over that socket.
+The server reads and writes `data/state/kangaroo.db` in the current directory. Set
+`KANGAROO_DB_PATH` to move it and `KANGAROO_SOCKET_PATH` to move the Unix socket. The app starts a
+sibling `kangaroo-server` when none answers, then talks to it over that socket.
 
 ## Machine facts
 
@@ -59,17 +59,39 @@ none answers, then talks to it over that socket.
 | `gpui_component` | `gpui-component` | 0.9.1 | `gpui-kit` `39ab849` |
 | `gpui_kit_assets` | `gpui-kit-assets` | 0.9.1 | same revision; the icon bundle |
 
-The macOS status item has no GPUI form, so `jh-server` writes it directly against AppKit through
-`objc2`. AppKit retains neither the item nor its target, so both live in `thread_local` storage.
+The macOS status item has no GPUI form, so `kangaroo-server` writes it directly against AppKit
+through `objc2`. AppKit retains neither the item nor its target, so both live in `thread_local`
+storage. The item shows the kangaroo mark, not a word: `assets/kangaroo-menubar.png` as a template
+image, which the menu bar tints for the light and dark themes.
+
+## The mark
+
+`assets/make-icons.py` draws both images from one set of shapes, and the two binaries embed the
+results at build time. Re-run it after a shape change.
+
+| File | Use |
+|---|---|
+| `assets/kangaroo-menubar.png` | The status item: 40 pixels, black on transparent, a template image at 22 points |
+| `assets/kangaroo-app.png` | The dock tile: 1024 pixels, dark kangaroo on a warm gradient, on the macOS icon grid |
+
+The dock draws the image into a fixed slot, so the tile size sets the size on screen. The tile is
+856 of the 1024 pixels, which matches the other icons in the dock pixel for pixel. A full-bleed
+tile reads as oversized next to them.
+The status item asks for 22 points and falls back to `ScaleProportionallyDown`, so the glyph
+fills the button and never clips.
+
+The binaries are plain executables and not an `.app` bundle, so the dock tile comes from
+`NSApplication::setApplicationIconImage` in `kangaroo-app` (`src/brand.rs`). It is not a
+`CFBundleIconFile`.
 
 ## Architecture
 
-Two processes. `jh-server` is a menu-bar agent: it owns the engine, the SQLite pool and the
-scheduler. `jh-app` is a GPUI window and never touches the database.
+Two processes. `kangaroo-server` is a menu-bar agent: it owns the engine, the SQLite pool and the
+scheduler. `kangaroo-app` is a GPUI window and never touches the database.
 
 ```
-jh-app (GPUI) ──Command──► Unix socket ──► jh-server (Tokio engine) ──► SQLite
-jh-app (GPUI) ◄──Event──── Unix socket ◄── jh-server (Tokio engine)
+kangaroo-app (GPUI) ──Command──► Unix socket ──► kangaroo-server (Tokio engine) ──► SQLite
+kangaroo-app (GPUI) ◄──Event──── Unix socket ◄── kangaroo-server (Tokio engine)
 ```
 
 One JSON object per line in both directions. The server broadcasts every event to every
@@ -86,26 +108,89 @@ asks for the rest when a row is clicked.
 
 ## The window
 
-One page. The tab bar picks the stage: Open, Shortlisted, Applied, each with its count. The
-table draws date, location, company, title and fit, cut down by the search field. A row click
-opens the detail panel on the right; `Esc` closes it.
+One page in three parts. The title bar carries the wordmark, the current section, the scan state
+and the scan button; the app draws it, and AppKit keeps only the traffic lights, at the left.
+The navigation column groups the three pipeline stages under Pipeline and the two system pages
+under System, with the count at the end of each stage row. The content area starts with a page
+title and one line of summary, then the table card or the health and settings cards.
 
-In the Open stage a column of ticks marks rows for a batch brief. `Generate briefs` sends one
-`MakeBriefs` for the ticked rows and clears the marks. A tick is drawn by the app, not by the
-table: the table's own selection is one row, which is the row the panel shows. A finished brief
-moves the posting to Shortlisted, so the mark goes with it.
+The table draws date, location, company and title, cut down by the search field and the location
+filter, and the date reads as a day: Today, Yesterday, 17 Nov. A row click opens the detail panel
+on the right; `Esc` closes it. The title column takes the width the other
+columns leave, so the table fills its card at any window size, and the fixed columns tighten
+when the drawer takes 400 points.
 
-The panel shows the verdict, the key skills, the proposed resume edits, the gaps, the facts and
-the posting text. It holds the actions that belong to one posting: `Generate brief`,
-`Mark applied` and `Open posting`.
+The page size follows the window height: the app divides the space left by the chrome by the
+40-point row height and shows that many rows, so the table never ends in blank space. Pagination
+appears only when the stage has more rows than the window holds.
 
-The app registers `gpui_kit_assets::Assets`. `gpui_component` names an icon but ships no source
-for it, so without an asset source the tick and the close button draw nothing.
+In the Open stage a column of ticks marks rows for a batch brief. `Brief` sends one `MakeBriefs`
+for the ticked rows and clears the marks. A tick is drawn by the app, not by the table: the
+table's own selection is one row, which is the row the panel shows. A finished brief moves the
+posting to Shortlisted, so the mark goes with it.
 
-The scheduler runs 09:00 / 13:00 / 17:00 on weekdays. A slot runs the scan under an exclusive
-`flock` on `data/state/.scan.lock`. The scan writes postings, the `seen` ledger, `scan_runs`,
-`source_runs`, descriptions and board health. A posting expires after `max_age_days` and does
-not return.
+The drawer puts the posting's title and its chips at the top, the facts and the posting text in
+a scrolling body, and the three actions in a footer that stays in view: `Open`, `Brief` and
+`Mark applied`. A brief sits above the facts: the verdict first, then the skills it names, the
+proposed resume edits, and the gaps.
+
+The Health page shows the scan state, the board counts, the database path and the posting
+counts. The Settings page shows the model-key state and the shortcuts the window answers to.
+Both are read-only until the real forms exist.
+
+`--settings` and `--health` open the window on that page, and `--open-first` opens the drawer on
+the top posting once the first snapshot arrives. The three exist for screenshots and manual
+checks.
+
+### The palette, in two tints
+
+The window is Slate: `#F7F7F7` page, `#FFFFFF` card, `#E4E4E4` hairline, `#171717` text,
+`#6B6B6B` muted text, and `#3F7D73` teal for actions, with `#B4793A` amber as the second voice.
+`src/theme.rs` holds the same six colours twice, once for a light page and once for a dark one, and
+derives every other token by mixing two of them.
+
+| | Light | Dark |
+|---|---|---|
+| Page | `#F7F7F7` | `#141414` |
+| Card | `#FFFFFF` | `#1C1C1C` |
+| Hairline | `#E4E4E4` | `#2E2E2E` |
+| Text | `#171717` | `#EDEDED` |
+| Muted text | `#6B6B6B` | `#9A9A9A` |
+| Accent | `#3F7D73` | `#4F9A8E` |
+| Second accent | `#B4793A` | `#C98F4E` |
+| On the accent | `#FFFFFF` | `#0B1412` |
+
+The dark tint is not the light one inverted. The teal is lifted, because the light value loses
+contrast on near-black; the accent's label turns near-black, because white on the lifted teal
+would not read; and every mix weight gains a third, because a hairline that reads on white
+disappears on black. A test holds both tints to the same floors: body text at AAA, muted text and
+the accent's label at AA.
+
+The same derivation gives both: the table header is the card pulled 35% toward the hairline, the
+row a reader picked is the card pulled 12% toward the accent, the sidebar is the page pulled 35%
+toward the hairline. Two places needed a rule of their own, because they are surfaces rather than
+tints: an unticked checkbox takes the muted text colour on a dark ground, and the active
+navigation row takes the accent tint there instead of the white card it uses in the light.
+
+#### Where each accent goes
+
+The first accent marks what the reader can press and where they are, and nothing else:
+
+- The primary buttons: `Scan` in the title bar, `Brief` in the table header.
+- The active navigation row: a two-point mark at its left edge, its icon, and its count.
+- A ticked row's checkbox, and the border of the row the table has selected.
+- An empty state's icon, at 55% opacity.
+- Focus rings, the text caret and links.
+
+Headings take the text colour, not the accent, so the window does not read as a brand exercise.
+The second accent has two jobs and no more: the Shortlist row in the navigation, and the brief it
+holds — the word `BRIEF` and the skills it names. The four status colours carry meaning rather
+than taste, so each tint states them rather than deriving them.
+
+The tint is chosen in Settings, under Appearance: two buttons, the current one filled. The choice
+is written to the `settings` table through `SaveSettings`, and the dashboard snapshot carries the
+stored settings back, so the next launch opens in the same tint. `--tint light|dark` overrides the
+stored value for one run, which keeps screenshots and manual checks predictable.
 
 ## Sources
 
@@ -148,7 +233,7 @@ make it pass.
 The brief is the three-stage chain: requirements, evidence match, finished brief. `validate`
 drops a `before` that is not verbatim in the resume and flags a notable term that appears in
 neither the resume nor the posting. The key is read from `DEEPSEEK_API_KEY`, the Keychain item
-`com.muhanli.jobhunt.deepseek`, or `~/.hermes/auth.json`, in that order. With no key the brief
+`com.muhanli.kangaroo.deepseek`, or `~/.hermes/auth.json`, in that order. With no key the brief
 buttons are gated and a run records `status: failed` rather than calling the model.
 
 ## Decisions
@@ -159,7 +244,7 @@ buttons are gated and a run records `status: failed` rather than calling the mod
 | Scan host | The Mac. The docker timer on `home` retires after parity |
 | Production | The Python dashboard stays live until the Rust scan matches it |
 | Commits | Local only. No push, and no merge to `main`, without approval |
-| State | SQLite `data/state/jobhunt.db`. YAML stays the config |
+| State | SQLite `data/state/kangaroo.db`. YAML stays the config |
 | Briefs | DeepSeek-compatible chat, key in Keychain, off when absent |
 | Platform | Apple Silicon macOS only |
 
@@ -170,7 +255,7 @@ buttons are gated and a run records `status: failed` rather than calling the mod
 | A capture shows the first frame after a change | macOS defers drawing while the window is occluded | Not a defect. Activate the app first |
 | `Scan now` ignores synthetic keys | The app needs Accessibility permission | Not a defect. Click it |
 | A full scan hits ~2,000 boards | That is the real Workday and JSON-vendor fleet | Expected; the sweep cache removes Workday from the daily path |
-| `jh-server` has no login item yet | Packaging is not started | Open, S9 |
+| `kangaroo-server` has no login item yet | Packaging is not started | Open, S9 |
 
 ## Roadmap
 

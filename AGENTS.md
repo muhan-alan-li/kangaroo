@@ -1,4 +1,4 @@
-# Job Hunt
+# Kangaroo
 
 Job search workspace for junior and new-grad software engineering roles in Vancouver, BC.
 Owner: Muhan Li. Agent: Hermes.
@@ -19,26 +19,27 @@ under `archive/`; they are out of the build here and still run production on `ma
 |---|---|
 | `data/candidate/` | Source of truth for every application field: `candidate_profile.yaml` (resume plus `answers_bank`), `resume-text.md`, `resume/`, `documents/`, `outreach-voice/`, `outreach-samples/` |
 | `data/config/` | `sources.yaml`, `filters.yaml`, `ats_boards.yaml`, `workday_boards.yaml`, `json_boards.yaml`, `icims_boards.yaml`, `workday_tombstones.yaml`, `source_candidates.md`, and the prompt templates |
-| `data/state/` | Gitignored. The Rust app keeps `jobhunt.db` (postings, the `seen` ledger, runs, descriptions, board health, briefs), `.scan.lock`, and the archived Python files: `last_scan.json`, `portal_feed.jsonl`, `descriptions.json`, `seen.jsonl`, `board_health.json`, `workday_sweep.json`, `sg_boards.json`, `applied.json`, `briefs/`, `scan.log`, `retry.log` |
+| `data/state/` | Gitignored. The Rust app keeps `kangaroo.db` (postings, the `seen` ledger, runs, descriptions, board health, briefs), `.scan.lock`, and the archived Python files: `last_scan.json`, `portal_feed.jsonl`, `descriptions.json`, `seen.jsonl`, `board_health.json`, `workday_sweep.json`, `sg_boards.json`, `applied.json`, `briefs/`, `scan.log`, `retry.log` |
 | `archive/` | The Python workspace, kept for reference: `server/` (API, scan, brief, jobs, tests), `client/` (Preact dashboard), `docker/` (scan and retry image), `systemd/` (the two user timers). Nothing on this branch reads it |
-| `crates/` | The Rust app: `jh-core`, `jh-db`, `jh-protocol`, `jh-scan`, `jh-engine`, `jh-brief`, `jh-cli`, `jh-server` (the menu-bar agent that owns the engine and SQLite), `jh-app` (the GPUI client) |
+| `crates/` | The Rust app: `kangaroo-core`, `kangaroo-db`, `kangaroo-protocol`, `kangaroo-scan`, `kangaroo-engine`, `kangaroo-brief`, `kangaroo-cli`, `kangaroo-server` (the menu-bar agent that owns the engine and SQLite), `kangaroo-app` (the GPUI client) |
+| `assets/` | The kangaroo mark: `make-icons.py` draws it, and the two PNGs are the menu-bar glyph and the dock tile |
 
 ## How a day runs
 
-1. **Scan, Monday to Friday at 09:00, 13:00 and 17:00.** `jh-server` owns the scheduler and
+1. **Scan, Monday to Friday at 09:00, 13:00 and 17:00.** `kangaroo-server` owns the scheduler and
    runs the scan: sweep if stale, scan five per tier, then mark reported. Each slot takes an
    exclusive `flock` on `data/state/.scan.lock`, so a manual run and a scheduled run never
    overlap. A missed slot waits for the next one.
-2. **Retry and prune, by hand.** `jh retry` re-checks only the Workday boards whose backoff has
-   come up, then `jh prune` after a clean run. Prune removes boards that are structurally dead,
-   that is a Workday 404 or 422 from a wrong career-site name. Prune appends each removed key to
+2. **Retry and prune, by hand.** `kangaroo retry` re-checks only the Workday boards whose backoff
+   has come up, then `kangaroo prune` after a clean run. Prune removes boards that are structurally
+   dead, that is a Workday 404 or 422 from a wrong career-site name. Prune appends each removed key to
    `workday_tombstones.yaml`, so the next harvest does not add it again. Delete a tombstone line
    by hand to let a board back in.
 3. **Apply, by the candidate.** The agent reads the posting, rules on the fit, and returns the
    answers and the gaps. It does not submit.
 
 There is no agent in the scan loop. A scan cannot score postings or draft text. The app shows
-the deterministic keyword score from `jh-core`.
+the deterministic keyword score from `kangaroo-core`.
 
 ## Sources
 
@@ -83,23 +84,24 @@ Seven sources are on in `data/config/sources.yaml`: `jobbank`, `newgrad_list`, `
 
 Do not run the archived Python workspace from this branch. `make` targets build the Rust app.
 
-`jh-server` is a menu-bar agent. It owns the engine, `data/state/jobhunt.db` and the scheduler.
-`jh-app` is the GPUI window; it talks to the server over `data/state/jh.sock` and never opens
-the database. The app starts a sibling server when none answers. The backend port has every
-source except iCIMS, the scan pipeline, board health, sweep, retry, prune, probe, harvest and
+`kangaroo-server` is a menu-bar agent. It owns the engine, `data/state/kangaroo.db` and the
+scheduler. Its status item shows the kangaroo mark, not a word.
+`kangaroo-app` is the GPUI window; it talks to the server over `data/state/kangaroo.sock` and
+never opens the database. The app starts a sibling server when none answers. The backend port has
+every source except iCIMS, the scan pipeline, board health, sweep, retry, prune, probe, harvest and
 the brief engine. Read `REPORT.md` for the state.
 
 | Command | Does |
 |---|---|
 | `make run-server` | Run the menu-bar server in the foreground |
 | `make run` | Build both binaries and launch the desktop app |
-| `target/debug/jh scan --db FILE [--source ID] [--json]` | Run one scan |
-| `target/debug/jh sweep --db FILE [--limit N] [--dry-run]` | Sweep Workday into the cache |
-| `target/debug/jh retry --db FILE [--force] [--dry-run]` | Re-check the boards that failed |
-| `target/debug/jh prune --db FILE [--dry-run]` | Remove structurally dead Workday boards |
-| `target/debug/jh probe-ats --db FILE [--report]` | Probe ATS slugs, rewrite `ats_boards.yaml` |
-| `target/debug/jh harvest workday\|jsonboards --db FILE [--report]` | Rebuild a board list from the feed |
-| `target/debug/jh import --from DIR --db FILE` | Import a Python state directory |
+| `target/debug/kangaroo scan --db FILE [--source ID] [--json]` | Run one scan |
+| `target/debug/kangaroo sweep --db FILE [--limit N] [--dry-run]` | Sweep Workday into the cache |
+| `target/debug/kangaroo retry --db FILE [--force] [--dry-run]` | Re-check the boards that failed |
+| `target/debug/kangaroo prune --db FILE [--dry-run]` | Remove structurally dead Workday boards |
+| `target/debug/kangaroo probe-ats --db FILE [--report]` | Probe ATS slugs, rewrite `ats_boards.yaml` |
+| `target/debug/kangaroo harvest workday\|jsonboards --db FILE [--report]` | Rebuild a board list from the feed |
+| `target/debug/kangaroo import --from DIR --db FILE` | Import a Python state directory |
 
 `--source` takes an id from `sources.yaml`: `jobbank`, `newgrad_list`, `newgrad_json`,
 `ats_boards`, `startups_gallery`, `workatastartup`, `linkedin`, `remotive`. A wrong id matches
@@ -108,26 +110,41 @@ nothing and exits clean, which looks like a quiet day. `--source ats` is wrong a
 
 ## Dashboard
 
-`jh-app` is the desktop window. It holds no state and opens no database. Each window asks
-`jh-server` for a `Snapshot` after it connects, then applies the events that follow, so two
+`kangaroo-app` is the desktop window. It holds no state and opens no database. Each window asks
+`kangaroo-server` for a `Snapshot` after it connects, then applies the events that follow, so two
 windows agree. The server broadcasts every event to every client.
 
-The window is a pipeline in three stages, and the tab bar selects the stage. A posting with a
-brief leaves Open for Shortlisted. An applied posting moves to Applied. No row is in two tabs.
-A failed brief stays in Open, so the next press retries it.
+The window is a pipeline in three stages, in the navigation column, grouped under Pipeline with
+the count at the end of each row. A posting with a brief leaves Open for Shortlisted. An applied
+posting moves to Applied. No row is in two tabs. A failed brief stays in Open, so the next press
+retries it.
 
-The table draws date, location, company, title and fit. A row click opens the detail panel on
-the right, and `Esc` closes it. The panel asks for `PostingDetail`, which carries the cached
+The title bar is drawn by the app: the wordmark, the current section, the scan state and the
+scan button. AppKit keeps only the traffic lights, placed at the left of that bar.
+
+The table draws date, location, company and title. A row click opens the detail panel on the
+right, and `Esc` closes it. The panel asks for `PostingDetail`, which carries the cached
 text, the salary and keyword fields, and the brief. In the Open tab a column of ticks marks rows
 for one batch brief.
 
-The commands are `Scan`, `CancelScan`, `Snapshot`, `RefreshConfig`, `MakeBrief`, `MakeBriefs`,
-`PostingDetail`, `Apply`, `Unapply` and `SaveSettings`. The events are `Dashboard`,
-`PostingDetail`, `ScanStatus`, `BriefUpdated` and `Error`. One JSON object per line, both ways.
+The page size follows the window height, not a fixed count: the app divides the space left by
+the chrome by the row height, so the table never ends in blank space.
 
-A brief runs on the engine thread. The scan retires a posting `max_age_days` after its publish
-date. Workday publishes a relative age only, so those dates are accurate to about one
-day. Rippling and BambooHR publish no date, so their rows sort last.
+The window is Slate: `#F7F7F7` page, `#FFFFFF` card, `#E4E4E4` hairline, `#171717` text,
+`#6B6B6B` muted text, `#3F7D73` teal for actions, `#B4793A` amber as the second voice.
+`crates/kangaroo-app/src/theme.rs` holds those six colours twice — once for the light page, once
+for the dark — and mixes every other token from two of them. The dark tint lifts the teal and
+makes the accent's label near-black, because both would otherwise lose contrast.
+
+The tint is chosen in Settings under Appearance. The choice is saved through `SaveSettings`, and
+the dashboard snapshot carries the stored settings back, so the next launch opens in the same
+tint; `--tint light|dark` overrides it for one run.
+
+The primary accent marks only what the reader can press and where they are: the primary buttons,
+the active navigation row's mark, icon and count, a ticked checkbox, a selected row's border, an
+empty state's icon, and focus. Headings take the text colour. The second accent is spent on the
+Shortlist row and the brief it holds. Status colours carry meaning, so each tint states them
+instead of deriving them.
 
 ## Rules
 
@@ -147,6 +164,6 @@ day. Rippling and BambooHR publish no date, so their rows sort last.
   source gives verbatim. Never guess a pattern. Keep the volume cap.
 - Log every outbound message in `data/state/outreach.jsonl`.
 - Look for new sources, and adopt each one for the long term. Adoption takes four steps: a
-  module in `crates/jh-scan/src/sources/`, a row in `sources::build`, a block in `sources.yaml`,
-  and a row in `source_candidates.md`. If the source reveals employer boards, run `probe-ats` too. A feed
-  that hands over boards is half-used until that probe runs.
+  module in `crates/kangaroo-scan/src/sources/`, a row in `sources::build`, a block in
+  `sources.yaml`, and a row in `source_candidates.md`. If the source reveals employer boards, run
+  `probe-ats` too. A feed that hands over boards is half-used until that probe runs.
