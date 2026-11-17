@@ -16,28 +16,11 @@ gpui = { package = "gpui-pre", version = "=0.3.12" }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit"] }
 # gpui-component 0.9.1, tag v0.9.1 of longbridge/gpui-kit.
 gpui_component = { package = "gpui-component", git = "https://github.com/longbridge/gpui-kit", rev = "39ab849a93b5f15507b969164d49891db8d5b470" }
-# The status item hands menu clicks to the GPUI main loop over a channel.
+# The component icons. `gpui_component` names an icon but ships no source for
+# it, so an app that registers none draws empty space where the icon goes.
+gpui_kit_assets = { package = "gpui-kit-assets", git = "https://github.com/longbridge/gpui-kit", rev = "39ab849a93b5f15507b969164d49891db8d5b470" }
 flume = "0.12"
+anyhow.workspace = true
 chrono.workspace = true
-kangaroo-engine = { path = "../kangaroo-engine" }
-
-# The macOS menu bar status item is written directly against AppKit; these are
-# the same objc2 versions gpui-component already links.
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = [
-    "NSButton",
-    "NSControl",
-    "NSEvent",
-    "NSApplication",
-    "NSRunningApplication",
-    "NSMenu",
-    "NSMenuItem",
-    "NSResponder",
-    "NSStatusBar",
-    "NSStatusBarButton",
-    "NSStatusItem",
-    "NSView",
-    "objc2-core-foundation",
-] }
-objc2-foundation = { version = "0.3", features = ["NSString"] }
+serde_json.workspace = true
+kangaroo-protocol = { path = "../kangaroo-protocol" }
