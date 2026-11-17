@@ -456,6 +456,7 @@ fn main() {
                                         view.last_error = Some(message)
                                     }
                                     EngineEvent::BriefUpdated { .. } => {}
+                                    EngineEvent::PostingDetail(_) => {}
                                 }
                                 cx.notify();
                             });
